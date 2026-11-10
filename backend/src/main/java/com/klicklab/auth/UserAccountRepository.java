@@ -25,8 +25,8 @@ public class UserAccountRepository {
     public Optional<UserAccount> findByEmail(String email) {
         return jdbc.query("""
                         SELECT id, email, password_hash, sdk_key, is_approved
-                          FROM users WHERE lower(email) = lower(:email)
-                         LIMIT 1
+                        FROM users WHERE lower(email) = lower(:email)
+                        LIMIT 1
                         """, Db.params("email", email),
                 (rs, i) -> new UserAccount(
                         rs.getString("id"), rs.getString("email"), rs.getString("password_hash"),

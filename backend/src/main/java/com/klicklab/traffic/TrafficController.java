@@ -56,22 +56,22 @@ public class TrafficController {
         List<Map<String, Object>> rows = db.list("""
                 WITH cc AS (
                     SELECT e.traffic_source, e.session_id, bool_or(ce.event_name IS NOT NULL) AS is_converted
-                      FROM events e
-                      LEFT JOIN conversion_events ce
+                    FROM events e
+                    LEFT JOIN conversion_events ce
                         ON ce.sdk_key = e.sdk_key AND ce.event_name = e.event_name AND ce.is_active = 1
-                     WHERE e.sdk_key = :sdkKey AND e.timestamp >= :startTs AND e.timestamp < :endTs
-                       AND e.traffic_source <> '' AND e.session_id <> ''
-                     GROUP BY e.traffic_source, e.session_id
+                    WHERE e.sdk_key = :sdkKey AND e.timestamp >= :startTs AND e.timestamp < :endTs
+                        AND e.traffic_source <> '' AND e.session_id <> ''
+                    GROUP BY e.traffic_source, e.session_id
                 )
                 SELECT traffic_source AS channel,
-                       count(*) AS total_sessions,
-                       count(*) FILTER (WHERE is_converted) AS converted_sessions,
-                       round(count(*) FILTER (WHERE is_converted) * 100.0 / count(*), 2) AS conversion_rate
-                  FROM cc
-                 GROUP BY traffic_source
+                    count(*) AS total_sessions,
+                    count(*) FILTER (WHERE is_converted) AS converted_sessions,
+                    round(count(*) FILTER (WHERE is_converted) * 100.0 / count(*), 2) AS conversion_rate
+                FROM cc
+                GROUP BY traffic_source
                 HAVING count(*) >= 5
-                 ORDER BY conversion_rate DESC, total_sessions DESC
-                 LIMIT 20
+                ORDER BY conversion_rate DESC, total_sessions DESC
+                LIMIT 20
                 """, Db.params("sdkKey", user.sdkKey(),
                 "startTs", clock.startOf(range.start()), "endTs", clock.startOf(range.end().plusDays(1))));
 

@@ -48,11 +48,11 @@ public class FunnelController {
                                                 @RequestParam(defaultValue = "50") int limit) {
         return db.list("""
                 SELECT page_path, sum(sessions) AS sessions
-                  FROM agg_first_pages_daily
-                 WHERE sdk_key = :sdkKey AND summary_date BETWEEN :start AND :end
-                 GROUP BY page_path
-                 ORDER BY sessions DESC
-                 LIMIT :limit
+                FROM agg_first_pages_daily
+                WHERE sdk_key = :sdkKey AND summary_date BETWEEN :start AND :end
+                GROUP BY page_path
+                ORDER BY sessions DESC
+                LIMIT :limit
                 """, DateRange.required(from, to).params(user.sdkKey()).addValue("limit", clamp(limit)));
     }
 
@@ -70,11 +70,11 @@ public class FunnelController {
     private List<Map<String, Object>> nextSteps(String sdkKey, String page, DateRange range, int limit) {
         return db.list("""
                 SELECT target, sum(sessions) AS sessions
-                  FROM agg_funnel_links_daily
-                 WHERE sdk_key = :sdkKey AND source = :page AND summary_date BETWEEN :start AND :end
-                 GROUP BY target
-                 ORDER BY sessions DESC
-                 LIMIT :limit
+                FROM agg_funnel_links_daily
+                WHERE sdk_key = :sdkKey AND source = :page AND summary_date BETWEEN :start AND :end
+                GROUP BY target
+                ORDER BY sessions DESC
+                LIMIT :limit
                 """, range.params(sdkKey).addValue("page", page).addValue("limit", clamp(limit)));
     }
 

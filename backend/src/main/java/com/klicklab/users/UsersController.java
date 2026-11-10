@@ -37,13 +37,13 @@ public class UsersController {
         LocalDate today = clock.today();
         List<Map<String, Object>> rows = db.list("""
                 SELECT summary_date, summary_hour, city, age_group, gender, device_type, device_os,
-                       sum(users) AS users,
-                       sum(sessions) AS sessions,
-                       sum(session_duration_sum) AS session_duration_sum
-                  FROM agg_user_session_hourly
-                 WHERE sdk_key = :sdkKey AND summary_date BETWEEN :start AND :end
-                 GROUP BY summary_date, summary_hour, city, age_group, gender, device_type, device_os
-                 ORDER BY summary_date, summary_hour
+                    sum(users) AS users,
+                    sum(sessions) AS sessions,
+                    sum(session_duration_sum) AS session_duration_sum
+                FROM agg_user_session_hourly
+                WHERE sdk_key = :sdkKey AND summary_date BETWEEN :start AND :end
+                GROUP BY summary_date, summary_hour, city, age_group, gender, device_type, device_os
+                ORDER BY summary_date, summary_hour
                 """, range.params(user.sdkKey()));
 
         String todayStr = today.toString();

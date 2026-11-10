@@ -44,11 +44,11 @@ public class AcquisitionController {
                                         @RequestParam(required = false) String endDate) {
         Map<String, Object> row = db.one("""
                 SELECT COALESCE(sum(funnel_visits) FILTER (WHERE NOT %1$s), 0) AS visits,
-                       COALESCE(sum(funnel_engaged) FILTER (WHERE NOT %1$s), 0) AS engaged,
-                       COALESCE(sum(funnel_converted) FILTER (WHERE NOT %1$s), 0) AS converted,
-                       COALESCE(sum(funnel_visits) FILTER (WHERE %1$s), 0) AS direct_visits
-                  FROM agg_traffic_hourly
-                 WHERE sdk_key = :sdkKey AND summary_date BETWEEN :start AND :end
+                    COALESCE(sum(funnel_engaged) FILTER (WHERE NOT %1$s), 0) AS engaged,
+                    COALESCE(sum(funnel_converted) FILTER (WHERE NOT %1$s), 0) AS converted,
+                    COALESCE(sum(funnel_visits) FILTER (WHERE %1$s), 0) AS direct_visits
+                FROM agg_traffic_hourly
+                WHERE sdk_key = :sdkKey AND summary_date BETWEEN :start AND :end
                 """.formatted(DIRECT), range(startDate, endDate).params(user.sdkKey()));
 
         // 마케팅 관점: Direct 를 제외한 채널만 유입으로 계산 (기존 로직)
@@ -82,9 +82,9 @@ public class AcquisitionController {
         Map<Integer, Long> byHour = new HashMap<>();
         db.list("""
                 SELECT summary_hour, sum(users) AS users
-                  FROM agg_user_session_hourly
-                 WHERE sdk_key = :sdkKey AND summary_date BETWEEN :start AND :end
-                 GROUP BY summary_hour
+                FROM agg_user_session_hourly
+                WHERE sdk_key = :sdkKey AND summary_date BETWEEN :start AND :end
+                GROUP BY summary_hour
                 """, range(startDate, endDate).params(user.sdkKey()))
                 .forEach(r -> byHour.put((int) Values.toLong(r.get("summary_hour")), Values.toLong(r.get("users"))));
 
@@ -104,11 +104,11 @@ public class AcquisitionController {
                                                  @RequestParam(required = false) String endDate) {
         return db.list("""
                 SELECT COALESCE(NULLIF(traffic_source, ''), 'direct') AS channel, sum(users) AS users
-                  FROM agg_traffic_hourly
-                 WHERE sdk_key = :sdkKey AND summary_date BETWEEN :start AND :end
-                 GROUP BY 1
-                 ORDER BY users DESC
-                 LIMIT 10
+                FROM agg_traffic_hourly
+                WHERE sdk_key = :sdkKey AND summary_date BETWEEN :start AND :end
+                GROUP BY 1
+                ORDER BY users DESC
+                LIMIT 10
                 """, range(startDate, endDate).params(user.sdkKey())).stream()
                 .map(r -> obj("channel", r.get("channel"), "users", Values.toLong(r.get("users")), "clicks", 0))
                 .toList();
@@ -121,19 +121,19 @@ public class AcquisitionController {
         var params = range(startDate, endDate).params(user.sdkKey());
         List<Map<String, Object>> device = db.list("""
                 SELECT %s AS type, sum(users) AS users
-                  FROM agg_user_session_hourly
-                 WHERE sdk_key = :sdkKey AND summary_date BETWEEN :start AND :end AND users > 0
-                 GROUP BY 1
-                 ORDER BY users DESC
-                 LIMIT 5
+                FROM agg_user_session_hourly
+                WHERE sdk_key = :sdkKey AND summary_date BETWEEN :start AND :end AND users > 0
+                GROUP BY 1
+                ORDER BY users DESC
+                LIMIT 5
                 """.formatted(DEVICE_GROUP), params);
         List<Map<String, Object>> browser = db.list("""
                 SELECT COALESCE(NULLIF(browser, ''), 'Unknown') AS name, sum(users) AS users
-                  FROM agg_user_session_hourly
-                 WHERE sdk_key = :sdkKey AND summary_date BETWEEN :start AND :end AND users > 0
-                 GROUP BY 1
-                 ORDER BY users DESC
-                 LIMIT 5
+                FROM agg_user_session_hourly
+                WHERE sdk_key = :sdkKey AND summary_date BETWEEN :start AND :end AND users > 0
+                GROUP BY 1
+                ORDER BY users DESC
+                LIMIT 5
                 """, params);
         return Map.of("device", device, "browser", browser);
     }
@@ -144,10 +144,10 @@ public class AcquisitionController {
                                                       @RequestParam(required = false) String endDate) {
         Map<String, Object> row = db.one("""
                 SELECT COALESCE(sum(funnel_visits), 0) AS visits,
-                       COALESCE(sum(funnel_engaged), 0) AS engaged,
-                       COALESCE(sum(funnel_converted), 0) AS converted
-                  FROM agg_traffic_hourly
-                 WHERE sdk_key = :sdkKey AND summary_date BETWEEN :start AND :end
+                    COALESCE(sum(funnel_engaged), 0) AS engaged,
+                    COALESCE(sum(funnel_converted), 0) AS converted
+                FROM agg_traffic_hourly
+                WHERE sdk_key = :sdkKey AND summary_date BETWEEN :start AND :end
                 """, range(startDate, endDate).params(user.sdkKey()));
         return List.of(
                 obj("step", "방문", "users", Values.toLong(row.get("visits"))),
@@ -163,13 +163,13 @@ public class AcquisitionController {
         DateRange range = range(startDate, endDate);
         return db.list("""
                 SELECT COALESCE(NULLIF(traffic_source, ''), 'direct') AS channel,
-                       %s AS device,
-                       count(DISTINCT %s) AS users,
-                       count(DISTINCT session_id) AS sessions
-                  FROM events
-                 WHERE sdk_key = :sdkKey AND timestamp >= :startTs AND timestamp < :endTs
-                 GROUP BY 1, 2
-                 ORDER BY users DESC
+                    %s AS device,
+                    count(DISTINCT %s) AS users,
+                    count(DISTINCT session_id) AS sessions
+                FROM events
+                WHERE sdk_key = :sdkKey AND timestamp >= :startTs AND timestamp < :endTs
+                GROUP BY 1, 2
+                ORDER BY users DESC
                 """.formatted(DEVICE_GROUP, Sql.CLIENT), Db.params("sdkKey", user.sdkKey(),
                 "startTs", clock.startOf(range.start()), "endTs", clock.startOf(range.end().plusDays(1))));
     }
@@ -180,12 +180,12 @@ public class AcquisitionController {
                                                @RequestParam(required = false) String endDate) {
         return db.list("""
                 SELECT COALESCE(NULLIF(traffic_campaign, ''), 'none') AS campaign,
-                       sum(users) AS users, sum(sessions) AS sessions
-                  FROM agg_traffic_hourly
-                 WHERE sdk_key = :sdkKey AND summary_date BETWEEN :start AND :end
-                 GROUP BY 1
-                 ORDER BY users DESC
-                 LIMIT 10
+                    sum(users) AS users, sum(sessions) AS sessions
+                FROM agg_traffic_hourly
+                WHERE sdk_key = :sdkKey AND summary_date BETWEEN :start AND :end
+                GROUP BY 1
+                ORDER BY users DESC
+                LIMIT 10
                 """, range(startDate, endDate).params(user.sdkKey()));
     }
 
@@ -196,11 +196,11 @@ public class AcquisitionController {
                                                   @RequestParam(required = false) String endDate) {
         return db.list("""
                 SELECT COALESCE(NULLIF(city, ''), 'unknown') AS city, sum(users) AS users
-                  FROM agg_user_session_hourly
-                 WHERE sdk_key = :sdkKey AND summary_date BETWEEN :start AND :end
-                 GROUP BY 1
-                 ORDER BY users DESC
-                 LIMIT 10
+                FROM agg_user_session_hourly
+                WHERE sdk_key = :sdkKey AND summary_date BETWEEN :start AND :end
+                GROUP BY 1
+                ORDER BY users DESC
+                LIMIT 10
                 """, range(startDate, endDate).params(user.sdkKey()));
     }
 
@@ -216,17 +216,17 @@ public class AcquisitionController {
                                                   @RequestParam(required = false) String endDate) {
         return db.list("""
                 SELECT COALESCE(NULLIF(landing_page, ''), '/') AS page,
-                       sum(sessions) AS sessions,
-                       sum(users) AS users,
-                       sum(funnel_visits) AS visits,
-                       sum(funnel_engaged) AS engaged,
-                       sum(funnel_converted) AS converted,
-                       sum(bounced_sessions) AS bounced
-                  FROM agg_traffic_hourly
-                 WHERE sdk_key = :sdkKey AND summary_date BETWEEN :start AND :end
-                 GROUP BY 1
-                 ORDER BY sessions DESC
-                 LIMIT 10
+                    sum(sessions) AS sessions,
+                    sum(users) AS users,
+                    sum(funnel_visits) AS visits,
+                    sum(funnel_engaged) AS engaged,
+                    sum(funnel_converted) AS converted,
+                    sum(bounced_sessions) AS bounced
+                FROM agg_traffic_hourly
+                WHERE sdk_key = :sdkKey AND summary_date BETWEEN :start AND :end
+                GROUP BY 1
+                ORDER BY sessions DESC
+                LIMIT 10
                 """, range(startDate, endDate).params(user.sdkKey())).stream().map(r -> {
             long sessions = Values.toLong(r.get("sessions"));
             long visits = Values.toLong(r.get("visits"));

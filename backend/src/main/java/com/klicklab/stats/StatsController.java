@@ -52,16 +52,16 @@ public class StatsController {
 
         List<Map<String, Object>> trend = db.list("""
                 SELECT summary_date AS date, sum(users) AS visitors
-                  FROM agg_user_session_daily
-                 WHERE sdk_key = :sdkKey AND summary_date >= :weekAgo AND summary_date < :today
-                 GROUP BY summary_date
-                 ORDER BY summary_date
+                FROM agg_user_session_daily
+                WHERE sdk_key = :sdkKey AND summary_date >= :weekAgo AND summary_date < :today
+                GROUP BY summary_date
+                ORDER BY summary_date
                 """, params).stream().map(r -> Map.<String, Object>of(
                 "date", r.get("date"), "visitors", Values.toLong(r.get("visitors")))).toList();
 
         long yesterday = db.longValue("""
                 SELECT COALESCE(sum(users), 0) FROM agg_user_session_daily
-                 WHERE sdk_key = :sdkKey AND summary_date = :yesterday
+                WHERE sdk_key = :sdkKey AND summary_date = :yesterday
                 """, params);
         long todayVisitors = db.longValue("SELECT count(DISTINCT " + Sql.CLIENT + ") FROM events "
                 + "WHERE sdk_key = :sdkKey AND timestamp >= :todayStart", params);
@@ -81,11 +81,11 @@ public class StatsController {
                 "todayStart", clock.startOf(today));
         long yesterday = db.longValue("""
                 SELECT COALESCE(sum(event_count), 0) FROM agg_event_daily
-                 WHERE sdk_key = :sdkKey AND summary_date = :yesterday AND event_name = 'auto_click'
+                WHERE sdk_key = :sdkKey AND summary_date = :yesterday AND event_name = 'auto_click'
                 """, params);
         long todayClicks = db.longValue("""
                 SELECT count(*) FROM events
-                 WHERE sdk_key = :sdkKey AND event_name = 'auto_click' AND timestamp >= :todayStart
+                WHERE sdk_key = :sdkKey AND event_name = 'auto_click' AND timestamp >= :todayStart
                 """, params);
         return Map.of("today", todayClicks, "yesterday", yesterday);
     }
@@ -95,12 +95,12 @@ public class StatsController {
     public Map<String, Object> topClicks(@AuthenticationPrincipal AuthUser user) {
         List<Map<String, Object>> items = db.list("""
                 SELECT element AS label, count(*) AS count
-                  FROM events
-                 WHERE sdk_key = :sdkKey AND event_name = 'auto_click'
-                   AND timestamp >= :todayStart AND element <> ''
-                 GROUP BY element
-                 ORDER BY count DESC
-                 LIMIT 5
+                FROM events
+                WHERE sdk_key = :sdkKey AND event_name = 'auto_click'
+                    AND timestamp >= :todayStart AND element <> ''
+                GROUP BY element
+                ORDER BY count DESC
+                LIMIT 5
                 """, Db.params("sdkKey", user.sdkKey(), "todayStart", clock.startOf(clock.today())));
         return Map.of("items", items);
     }
@@ -114,17 +114,19 @@ public class StatsController {
         int periodMinutes = positiveInt(period, 60);
         int stepMinutes = positiveInt(step, 5);
         List<Map<String, Object>> rows = db.list("""
-                WITH b AS (SELECT CAST(:base AS timestamptz) AS base,
-                                  date_trunc('minute', CAST(:base AS timestamptz)) AS base_min)
+                WITH b AS (
+                    SELECT CAST(:base AS timestamptz) AS base,
+                        date_trunc('minute', CAST(:base AS timestamptz)) AS base_min
+                )
                 SELECT to_char(b.base_min + make_interval(mins =>
                            (((extract(epoch FROM date_trunc('minute', e.timestamp) - b.base_min) / 60)::int
                              / :step) * :step)), 'HH24:MI') AS time,
-                       count(*) AS count
-                  FROM events e CROSS JOIN b
-                 WHERE e.sdk_key = :sdkKey AND e.event_name = 'auto_click'
-                   AND e.timestamp >= b.base - make_interval(mins => :period)
-                 GROUP BY 1
-                 ORDER BY 1
+                    count(*) AS count
+                FROM events e CROSS JOIN b
+                WHERE e.sdk_key = :sdkKey AND e.event_name = 'auto_click'
+                    AND e.timestamp >= b.base - make_interval(mins => :period)
+                GROUP BY 1
+                ORDER BY 1
                 """, Db.params("sdkKey", user.sdkKey(), "base", parseBaseTime(baseTime),
                 "step", stepMinutes, "period", periodMinutes));
         return Map.of("data", rows);
@@ -135,11 +137,11 @@ public class StatsController {
     public Map<String, Object> dropoffSummary(@AuthenticationPrincipal AuthUser user) {
         List<Map<String, Object>> rows = db.list("""
                 SELECT page_path AS page,
-                       round(exits * 100.0 / page_views, 1) AS "dropRate"
-                  FROM agg_page_daily
-                 WHERE sdk_key = :sdkKey AND summary_date = :today AND page_views > 0
-                 ORDER BY "dropRate" DESC
-                 LIMIT 5
+                    round(exits * 100.0 / page_views, 1) AS "dropRate"
+                FROM agg_page_daily
+                WHERE sdk_key = :sdkKey AND summary_date = :today AND page_views > 0
+                ORDER BY "dropRate" DESC
+                LIMIT 5
                 """, Db.params("sdkKey", user.sdkKey(), "today", clock.today()));
         return Map.of("data", rows);
     }
@@ -153,18 +155,18 @@ public class StatsController {
             case "converted" -> """
                     AND session_id IN (
                         SELECT session_id FROM events
-                         WHERE sdk_key = :sdkKey AND event_name = 'page_view' AND timestamp >= :since
-                         GROUP BY session_id
+                        WHERE sdk_key = :sdkKey AND event_name = 'page_view' AND timestamp >= :since
+                        GROUP BY session_id
                         HAVING min(timestamp) FILTER (WHERE page_path = :fromPage) <
                                min(timestamp) FILTER (WHERE page_path = :toPage))
                     """;
             case "abandoned_cart" -> """
                     AND session_id IN (
                         SELECT session_id FROM events
-                         WHERE sdk_key = :sdkKey AND event_name = 'page_view' AND timestamp >= :since
-                         GROUP BY session_id
+                        WHERE sdk_key = :sdkKey AND event_name = 'page_view' AND timestamp >= :since
+                        GROUP BY session_id
                         HAVING min(timestamp) FILTER (WHERE page_path = :fromPage) IS NOT NULL
-                           AND min(timestamp) FILTER (WHERE page_path = :toPage) IS NULL)
+                            AND min(timestamp) FILTER (WHERE page_path = :toPage) IS NULL)
                     """;
             default -> "";
         };
@@ -173,30 +175,30 @@ public class StatsController {
         List<Map<String, Object>> rows = db.list("""
                 WITH pv AS (
                     SELECT session_id, page_path, timestamp, id
-                      FROM events
-                     WHERE sdk_key = :sdkKey AND event_name = 'page_view' AND page_path <> ''
-                       AND session_id <> '' AND timestamp >= :since
-                       %s
+                    FROM events
+                    WHERE sdk_key = :sdkKey AND event_name = 'page_view' AND page_path <> ''
+                        AND session_id <> '' AND timestamp >= :since
+                        %s
                 ), pairs AS (
                     SELECT page_path AS src,
-                           lead(page_path) OVER (PARTITION BY session_id ORDER BY timestamp, id) AS dst
-                      FROM pv
+                        lead(page_path) OVER (PARTITION BY session_id ORDER BY timestamp, id) AS dst
+                    FROM pv
                 ), ranked AS (
                     SELECT src, dst, count(*) AS value
-                      FROM pairs WHERE dst IS NOT NULL
-                     GROUP BY src, dst
+                    FROM pairs WHERE dst IS NOT NULL
+                    GROUP BY src, dst
                 ), cumulated AS (
                     SELECT src, dst, value,
-                           sum(value) OVER (ORDER BY value DESC, src, dst
-                                            ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS running,
-                           sum(value) OVER () AS total
-                      FROM ranked
+                        sum(value) OVER (ORDER BY value DESC, src, dst
+                                         ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS running,
+                        sum(value) OVER () AS total
+                    FROM ranked
                 )
                 SELECT src AS "from", dst AS "to", value
-                  FROM cumulated
-                 WHERE running <= total * :ratio
-                 ORDER BY value DESC
-                 LIMIT 500
+                FROM cumulated
+                WHERE running <= total * :ratio
+                ORDER BY value DESC
+                LIMIT 500
                 """.formatted(sessionFilter), Db.params("sdkKey", user.sdkKey(),
                 "since", clock.now().minusDays(1).toOffsetDateTime(),
                 "fromPage", "/cart", "toPage", "/checkout/success", "ratio", ratio));
@@ -228,47 +230,57 @@ public class StatsController {
                 "limit", positiveInt(limit, 3));
 
         String sessionsCte = """
-                a AS (SELECT session_id, min(timestamp) AS a_time FROM events
-                       WHERE sdk_key = :sdkKey AND page_path = :fromPage
-                         AND timestamp >= :start AND timestamp < :end AND session_id <> ''
-                       GROUP BY session_id),
-                b AS (SELECT session_id, min(timestamp) AS b_time FROM events
-                       WHERE sdk_key = :sdkKey AND page_path = :toPage
-                         AND timestamp >= :start AND timestamp < :end AND session_id <> ''
-                       GROUP BY session_id),
-                ab AS (SELECT a.session_id FROM a JOIN b USING (session_id) WHERE b.b_time > a.a_time)
+                a AS (
+                    SELECT session_id, min(timestamp) AS a_time
+                    FROM events
+                    WHERE sdk_key = :sdkKey AND page_path = :fromPage
+                        AND timestamp >= :start AND timestamp < :end AND session_id <> ''
+                    GROUP BY session_id
+                ),
+                b AS (
+                    SELECT session_id, min(timestamp) AS b_time
+                    FROM events
+                    WHERE sdk_key = :sdkKey AND page_path = :toPage
+                        AND timestamp >= :start AND timestamp < :end AND session_id <> ''
+                    GROUP BY session_id
+                ),
+                ab AS (
+                    SELECT a.session_id
+                    FROM a JOIN b USING (session_id)
+                    WHERE b.b_time > a.a_time
+                )
                 """;
 
         long totalFromPage = db.longValue("""
                 SELECT count(DISTINCT session_id) FROM events
-                 WHERE sdk_key = :sdkKey AND page_path = :fromPage AND timestamp >= :start AND timestamp < :end
+                WHERE sdk_key = :sdkKey AND page_path = :fromPage AND timestamp >= :start AND timestamp < :end
                 """, params);
         long totalConversion = db.longValue("WITH " + sessionsCte + " SELECT count(*) FROM ab", params);
 
         List<Map<String, Object>> pathRows = db.list("WITH " + sessionsCte + """
                 , fp AS (
                     SELECT session_id, array_agg(page_path ORDER BY timestamp, id) AS path
-                      FROM events
-                     WHERE sdk_key = :sdkKey AND event_name = 'page_view' AND page_path <> ''
-                       AND timestamp >= :start AND timestamp < :end
-                       AND session_id IN (SELECT session_id FROM a)
-                     GROUP BY session_id
+                    FROM events
+                    WHERE sdk_key = :sdkKey AND event_name = 'page_view' AND page_path <> ''
+                        AND timestamp >= :start AND timestamp < :end
+                        AND session_id IN (SELECT session_id FROM a)
+                    GROUP BY session_id
                 ), lp AS (
                     SELECT array_to_string(
                                CASE WHEN array_position(fp.path, CAST(:toPage AS text)) IS NOT NULL
                                     THEN fp.path[1 : array_position(fp.path, CAST(:toPage AS text))]
                                     ELSE fp.path END, ' → ') AS path_string,
-                           (ab.session_id IS NOT NULL) AS is_converted
-                      FROM fp LEFT JOIN ab USING (session_id)
+                        (ab.session_id IS NOT NULL) AS is_converted
+                    FROM fp LEFT JOIN ab USING (session_id)
                 )
                 SELECT path_string,
-                       count(*) AS total_sessions,
-                       count(*) FILTER (WHERE is_converted) AS conversion_count
-                  FROM lp
-                 GROUP BY path_string
+                    count(*) AS total_sessions,
+                    count(*) FILTER (WHERE is_converted) AS conversion_count
+                FROM lp
+                GROUP BY path_string
                 HAVING count(*) FILTER (WHERE is_converted) > 0
-                 ORDER BY conversion_count DESC
-                 LIMIT :limit
+                ORDER BY conversion_count DESC
+                LIMIT :limit
                 """, params);
 
         List<Map<String, Object>> data = new ArrayList<>();

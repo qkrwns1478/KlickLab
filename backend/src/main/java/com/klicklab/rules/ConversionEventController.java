@@ -43,9 +43,9 @@ public class ConversionEventController {
     public List<Map<String, Object>> list(@AuthenticationPrincipal AuthUser user) {
         return db.list("""
                 SELECT event_name, description, is_active, created_at, updated_at
-                  FROM conversion_events
-                 WHERE sdk_key = :sdkKey AND is_active = 1
-                 ORDER BY created_at DESC
+                FROM conversion_events
+                WHERE sdk_key = :sdkKey AND is_active = 1
+                ORDER BY created_at DESC
                 """, Db.params("sdkKey", user.sdkKey()));
     }
 
@@ -59,7 +59,7 @@ public class ConversionEventController {
                 INSERT INTO conversion_events (sdk_key, event_name, description, is_active)
                 VALUES (:sdkKey, :eventName, :description, 1)
                 ON CONFLICT (sdk_key, event_name) DO UPDATE
-                   SET description = EXCLUDED.description, is_active = 1, updated_at = now()
+                    SET description = EXCLUDED.description, is_active = 1, updated_at = now()
                 """, Db.params("sdkKey", user.sdkKey(), "eventName", body.event_name(),
                 "description", body.description() == null ? "" : body.description()));
         return ResponseEntity.status(HttpStatus.CREATED)
@@ -71,7 +71,7 @@ public class ConversionEventController {
     public Map<String, Object> delete(@AuthenticationPrincipal AuthUser user, @PathVariable String eventName) {
         db.update("""
                 UPDATE conversion_events SET is_active = 0, updated_at = now()
-                 WHERE sdk_key = :sdkKey AND event_name = :eventName
+                WHERE sdk_key = :sdkKey AND event_name = :eventName
                 """, Db.params("sdkKey", user.sdkKey(), "eventName", eventName));
         return Map.of("message", "Conversion event deleted successfully");
     }
@@ -86,26 +86,26 @@ public class ConversionEventController {
 
         List<Map<String, Object>> overall = db.list("""
                 SELECT summary_date,
-                       sum(conversions) AS conversions,
-                       sum(sessions) AS sessions,
-                       round(sum(conversions) * 100.0 / NULLIF(sum(sessions), 0), 2) AS conversion_rate
-                  FROM agg_traffic_hourly
-                 WHERE sdk_key = :sdkKey AND summary_date BETWEEN :start AND :end
-                 GROUP BY summary_date
-                 ORDER BY summary_date DESC
+                    sum(conversions) AS conversions,
+                    sum(sessions) AS sessions,
+                    round(sum(conversions) * 100.0 / NULLIF(sum(sessions), 0), 2) AS conversion_rate
+                FROM agg_traffic_hourly
+                WHERE sdk_key = :sdkKey AND summary_date BETWEEN :start AND :end
+                GROUP BY summary_date
+                ORDER BY summary_date DESC
                 """, params);
 
         List<Map<String, Object>> byEvent = db.list("""
                 SELECT d.event_name,
-                       sum(d.event_count) AS total_count,
-                       sum(d.unique_users) AS unique_users,
-                       d.summary_date
-                  FROM agg_event_daily d
-                  JOIN conversion_events ce
+                    sum(d.event_count) AS total_count,
+                    sum(d.unique_users) AS unique_users,
+                    d.summary_date
+                FROM agg_event_daily d
+                JOIN conversion_events ce
                     ON ce.sdk_key = d.sdk_key AND ce.event_name = d.event_name AND ce.is_active = 1
-                 WHERE d.sdk_key = :sdkKey AND d.summary_date BETWEEN :start AND :end
-                 GROUP BY d.event_name, d.summary_date
-                 ORDER BY d.summary_date DESC, total_count DESC
+                WHERE d.sdk_key = :sdkKey AND d.summary_date BETWEEN :start AND :end
+                GROUP BY d.event_name, d.summary_date
+                ORDER BY d.summary_date DESC, total_count DESC
                 """, params);
 
         return Map.of("overall", overall, "byEvent", byEvent);
@@ -122,29 +122,33 @@ public class ConversionEventController {
 
         List<Map<String, Object>> ruleEvents = db.list("""
                 SELECT r.new_event_name AS event_name,
-                       'rule' AS source_type,
-                       count(*) AS definition_count,
-                       to_char(max(r.created_at), 'YYYY-MM-DD') AS created_date
-                  FROM event_rules r
-                 WHERE r.sdk_key = :sdkKey
-                   AND NOT EXISTS (SELECT 1 FROM conversion_events ce
-                                    WHERE ce.sdk_key = r.sdk_key AND ce.event_name = r.new_event_name
-                                      AND ce.is_active = 1)
-                 GROUP BY r.new_event_name
+                    'rule' AS source_type,
+                    count(*) AS definition_count,
+                    to_char(max(r.created_at), 'YYYY-MM-DD') AS created_date
+                FROM event_rules r
+                WHERE r.sdk_key = :sdkKey
+                    AND NOT EXISTS (
+                        SELECT 1 FROM conversion_events ce
+                        WHERE ce.sdk_key = r.sdk_key AND ce.event_name = r.new_event_name
+                            AND ce.is_active = 1
+                    )
+                GROUP BY r.new_event_name
                 """, params);
 
         List<Map<String, Object>> buttonEvents = db.list("""
                 SELECT b.event_name,
-                       'button' AS source_type,
-                       count(*) AS definition_count,
-                       to_char(max(b.created_at), 'YYYY-MM-DD') AS created_date,
-                       array_agg(b.description ORDER BY b.created_at) AS descriptions
-                  FROM event_button b
-                 WHERE b.sdk_key = :sdkKey
-                   AND NOT EXISTS (SELECT 1 FROM conversion_events ce
-                                    WHERE ce.sdk_key = b.sdk_key AND ce.event_name = b.event_name
-                                      AND ce.is_active = 1)
-                 GROUP BY b.event_name
+                    'button' AS source_type,
+                    count(*) AS definition_count,
+                    to_char(max(b.created_at), 'YYYY-MM-DD') AS created_date,
+                    array_agg(b.description ORDER BY b.created_at) AS descriptions
+                FROM event_button b
+                WHERE b.sdk_key = :sdkKey
+                    AND NOT EXISTS (
+                        SELECT 1 FROM conversion_events ce
+                        WHERE ce.sdk_key = b.sdk_key AND ce.event_name = b.event_name
+                            AND ce.is_active = 1
+                    )
+                GROUP BY b.event_name
                 """, params);
 
         List<String> eventNames = new ArrayList<>();
@@ -155,14 +159,14 @@ public class ConversionEventController {
         if (!eventNames.isEmpty()) {
             db.list("""
                     SELECT event_name,
-                           count(*) AS event_count,
-                           count(DISTINCT client_id) AS unique_users,
-                           max(timestamp) AS last_seen
-                      FROM events
-                     WHERE sdk_key = :sdkKey
-                       AND event_name IN (:names)
-                       AND timestamp >= :since
-                     GROUP BY event_name
+                        count(*) AS event_count,
+                        count(DISTINCT client_id) AS unique_users,
+                        max(timestamp) AS last_seen
+                    FROM events
+                    WHERE sdk_key = :sdkKey
+                        AND event_name IN (:names)
+                        AND timestamp >= :since
+                    GROUP BY event_name
                     """, Db.params("sdkKey", user.sdkKey(), "names", eventNames,
                     "since", clock.startOf(clock.today().minusDays(30)))).forEach(stat -> {
                 Map<String, Object> s = new LinkedHashMap<>();

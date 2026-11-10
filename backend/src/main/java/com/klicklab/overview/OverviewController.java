@@ -50,20 +50,20 @@ public class OverviewController {
 
         List<Map<String, Object>> locations = db.list("""
                 SELECT city, count(*) AS page_views
-                  FROM events
-                 WHERE sdk_key = :sdkKey AND timestamp >= :since
-                   AND event_name = 'page_view' AND city <> ''
-                 GROUP BY city
-                 ORDER BY page_views DESC
-                 LIMIT 10
+                FROM events
+                WHERE sdk_key = :sdkKey AND timestamp >= :since
+                    AND event_name = 'page_view' AND city <> ''
+                GROUP BY city
+                ORDER BY page_views DESC
+                LIMIT 10
                 """, params);
 
         List<Map<String, Object>> trendRows = db.list("""
                 SELECT to_char(date_trunc('minute', timestamp), 'YYYY-MM-DD"T"HH24:MI') AS minute,
-                       count(DISTINCT %s) AS users
-                  FROM events
-                 WHERE sdk_key = :sdkKey AND timestamp >= :trendSince
-                 GROUP BY 1
+                    count(DISTINCT %s) AS users
+                FROM events
+                WHERE sdk_key = :sdkKey AND timestamp >= :trendSince
+                GROUP BY 1
                 """.formatted(Sql.CLIENT), params);
 
         // 지역별 사용자 수: 페이지뷰 비율로 활성 사용자 수를 배분 (기존 로직 유지)
@@ -106,13 +106,13 @@ public class OverviewController {
         DateRange range = DateRange.orDefault(startDate, endDate, clock, 7);
         List<Map<String, Object>> rows = db.list("""
                 SELECT summary_date,
-                       sum(users) AS active_users,
-                       sum(sessions) AS sessions,
-                       sum(session_duration_sum) AS session_duration_sum
-                  FROM agg_user_session_daily
-                 WHERE sdk_key = :sdkKey AND summary_date BETWEEN :start AND :end
-                 GROUP BY summary_date
-                 ORDER BY summary_date
+                    sum(users) AS active_users,
+                    sum(sessions) AS sessions,
+                    sum(session_duration_sum) AS session_duration_sum
+                FROM agg_user_session_daily
+                WHERE sdk_key = :sdkKey AND summary_date BETWEEN :start AND :end
+                GROUP BY summary_date
+                ORDER BY summary_date
                 """, range.params(user.sdkKey()));
 
         long totalUsers = rows.stream().mapToLong(r -> Values.toLong(r.get("active_users"))).sum();
@@ -155,11 +155,11 @@ public class OverviewController {
         DateRange range = DateRange.orDefault(startDate, endDate, clock, 7);
         List<Map<String, Object>> rows = db.list("""
                 SELECT COALESCE(NULLIF(traffic_source, ''), 'direct') AS source, sum(users) AS users
-                  FROM agg_traffic_hourly
-                 WHERE sdk_key = :sdkKey AND summary_date BETWEEN :start AND :end
-                 GROUP BY 1
-                 ORDER BY users DESC
-                 LIMIT 10
+                FROM agg_traffic_hourly
+                WHERE sdk_key = :sdkKey AND summary_date BETWEEN :start AND :end
+                GROUP BY 1
+                ORDER BY users DESC
+                LIMIT 10
                 """, range.params(user.sdkKey()));
         List<Map<String, Object>> sources = rows.stream()
                 .map(r -> Map.<String, Object>of("source", r.get("source"), "users", Values.toLong(r.get("users"))))
@@ -174,11 +174,11 @@ public class OverviewController {
         DateRange range = DateRange.orDefault(startDate, endDate, clock, 7);
         List<Map<String, Object>> rows = db.list("""
                 SELECT page_path AS page, sum(page_views) AS views
-                  FROM agg_page_daily
-                 WHERE sdk_key = :sdkKey AND summary_date BETWEEN :start AND :end
-                 GROUP BY page_path
-                 ORDER BY views DESC
-                 LIMIT 10
+                FROM agg_page_daily
+                WHERE sdk_key = :sdkKey AND summary_date BETWEEN :start AND :end
+                GROUP BY page_path
+                ORDER BY views DESC
+                LIMIT 10
                 """, range.params(user.sdkKey()));
         List<Map<String, Object>> pages = rows.stream()
                 .map(r -> Map.<String, Object>of("page", r.get("page"), "views", Values.toLong(r.get("views"))))
@@ -194,11 +194,11 @@ public class OverviewController {
         DateRange range = DateRange.orDefault(startDate, endDate, clock, 7);
         List<Map<String, Object>> rows = db.list("""
                 SELECT event_name AS event, sum(event_count) AS count
-                  FROM agg_event_daily
-                 WHERE sdk_key = :sdkKey AND summary_date BETWEEN :start AND :end
-                 GROUP BY event_name
-                 ORDER BY count DESC
-                 LIMIT :limit
+                FROM agg_event_daily
+                WHERE sdk_key = :sdkKey AND summary_date BETWEEN :start AND :end
+                GROUP BY event_name
+                ORDER BY count DESC
+                LIMIT :limit
                 """, range.params(user.sdkKey()).addValue("limit", Math.max(1, limit)));
         List<Map<String, Object>> events = rows.stream()
                 .map(r -> Map.<String, Object>of("event", r.get("event"), "count", Values.toLong(r.get("count"))))

@@ -36,14 +36,14 @@ public class EngagementController {
         DateRange range = DateRange.required(startDate, endDate);
         List<Map<String, Object>> rows = db.list("""
                 SELECT summary_date AS date,
-                       sum(sessions) AS total_sessions,
-                       sum(users) AS total_users,
-                       round(sum(session_duration_sum) / NULLIF(sum(sessions), 0), 2) AS avg_session_seconds,
-                       round(sum(sessions) / NULLIF(sum(users), 0), 2) AS sessions_per_user
-                  FROM agg_user_session_daily
-                 WHERE sdk_key = :sdkKey AND summary_date BETWEEN :start AND :end
-                 GROUP BY summary_date
-                 ORDER BY summary_date
+                    sum(sessions) AS total_sessions,
+                    sum(users) AS total_users,
+                    round(sum(session_duration_sum) / NULLIF(sum(sessions), 0), 2) AS avg_session_seconds,
+                    round(sum(sessions) / NULLIF(sum(users), 0), 2) AS sessions_per_user
+                FROM agg_user_session_daily
+                WHERE sdk_key = :sdkKey AND summary_date BETWEEN :start AND :end
+                GROUP BY summary_date
+                ORDER BY summary_date
                 """, range.params(user.sdkKey()));
 
         Map<String, Object> data = new LinkedHashMap<>();
@@ -67,13 +67,13 @@ public class EngagementController {
         DateRange range = DateRange.required(startDate, endDate);
         List<Map<String, Object>> rows = db.list("""
                 SELECT page_path,
-                       round((sum(time_on_page_sum) / sum(page_views))::numeric, 1) AS average_time
-                  FROM agg_page_daily
-                 WHERE sdk_key = :sdkKey AND summary_date BETWEEN :start AND :end
-                 GROUP BY page_path
+                    round((sum(time_on_page_sum) / sum(page_views))::numeric, 1) AS average_time
+                FROM agg_page_daily
+                WHERE sdk_key = :sdkKey AND summary_date BETWEEN :start AND :end
+                GROUP BY page_path
                 HAVING sum(page_views) > 0
-                 ORDER BY average_time DESC
-                 LIMIT :limit
+                ORDER BY average_time DESC
+                LIMIT :limit
                 """, range.params(user.sdkKey()).addValue("limit", limit(limit)));
         return map(rows, r -> {
             double avg = Values.toDouble(r.get("average_time"));
@@ -105,12 +105,12 @@ public class EngagementController {
         DateRange range = DateRange.required(startDate, endDate);
         List<Map<String, Object>> rows = db.list("""
                 SELECT page_path, sum(page_views) AS total_views
-                  FROM agg_page_daily
-                 WHERE sdk_key = :sdkKey AND summary_date BETWEEN :start AND :end
-                 GROUP BY page_path
+                FROM agg_page_daily
+                WHERE sdk_key = :sdkKey AND summary_date BETWEEN :start AND :end
+                GROUP BY page_path
                 HAVING sum(page_views) > 0
-                 ORDER BY total_views DESC
-                 LIMIT :limit
+                ORDER BY total_views DESC
+                LIMIT :limit
                 """, range.params(user.sdkKey()).addValue("limit", limit(limit)));
         return map(rows, r -> obj("page", r.get("page_path"), "totalViews", Values.toLong(r.get("total_views"))));
     }
@@ -122,10 +122,10 @@ public class EngagementController {
         DateRange range = DateRange.required(startDate, endDate);
         List<Map<String, Object>> rows = db.list("""
                 SELECT summary_date AS date, sum(page_views) AS total
-                  FROM agg_page_daily
-                 WHERE sdk_key = :sdkKey AND summary_date BETWEEN :start AND :end
-                 GROUP BY summary_date
-                 ORDER BY summary_date
+                FROM agg_page_daily
+                WHERE sdk_key = :sdkKey AND summary_date BETWEEN :start AND :end
+                GROUP BY summary_date
+                ORDER BY summary_date
                 """, range.params(user.sdkKey()));
         return map(rows, r -> obj("date", r.get("date"), "totalViews", Values.toLong(r.get("total"))));
     }
@@ -137,11 +137,11 @@ public class EngagementController {
         DateRange range = DateRange.required(startDate, endDate);
         List<Map<String, Object>> rows = db.list("""
                 SELECT summary_date AS date, sum(event_count) AS total
-                  FROM agg_event_daily
-                 WHERE sdk_key = :sdkKey AND summary_date BETWEEN :start AND :end
-                   AND event_name IN %s
-                 GROUP BY summary_date
-                 ORDER BY summary_date
+                FROM agg_event_daily
+                WHERE sdk_key = :sdkKey AND summary_date BETWEEN :start AND :end
+                    AND event_name IN %s
+                GROUP BY summary_date
+                ORDER BY summary_date
                 """.formatted(Sql.CLICK_EVENTS), range.params(user.sdkKey()));
         return map(rows, r -> obj("date", r.get("date"), "totalClicks", Values.toLong(r.get("total"))));
     }
@@ -166,10 +166,10 @@ public class EngagementController {
         DateRange range = DateRange.required(startDate, endDate);
         List<Map<String, Object>> rows = db.list("""
                 SELECT summary_date AS date, event_name, event_count, unique_users,
-                       round(event_count::numeric / GREATEST(unique_users, 1), 2) AS avg_event_per_user
-                  FROM agg_event_daily
-                 WHERE sdk_key = :sdkKey AND summary_date BETWEEN :start AND :end
-                 ORDER BY summary_date, event_count DESC
+                    round(event_count::numeric / GREATEST(unique_users, 1), 2) AS avg_event_per_user
+                FROM agg_event_daily
+                WHERE sdk_key = :sdkKey AND summary_date BETWEEN :start AND :end
+                ORDER BY summary_date, event_count DESC
                 """, range.params(user.sdkKey()));
         return map(rows, r -> obj(
                 "date", r.get("date"),
@@ -186,17 +186,18 @@ public class EngagementController {
         DateRange range = DateRange.required(startDate, endDate);
         List<Map<String, Object>> rows = db.list("""
                 SELECT p.summary_date AS date, p.page_path, p.page_views, p.unique_users,
-                       round(p.page_views::numeric / NULLIF(p.unique_users, 0), 2) AS pageviews_per_user,
-                       round((p.time_on_page_sum / NULLIF(p.unique_users, 0))::numeric, 2) AS avg_engagement_time_sec,
-                       COALESCE(e.total_events, 0) AS total_events
-                  FROM agg_page_daily p
-                  LEFT JOIN (SELECT summary_date, page_path, sum(event_count) AS total_events
-                               FROM agg_event_page_daily
-                              WHERE sdk_key = :sdkKey AND summary_date BETWEEN :start AND :end
-                              GROUP BY summary_date, page_path) e
-                         USING (summary_date, page_path)
-                 WHERE p.sdk_key = :sdkKey AND p.summary_date BETWEEN :start AND :end
-                 ORDER BY p.summary_date DESC, p.page_views DESC
+                    round(p.page_views::numeric / NULLIF(p.unique_users, 0), 2) AS pageviews_per_user,
+                    round((p.time_on_page_sum / NULLIF(p.unique_users, 0))::numeric, 2) AS avg_engagement_time_sec,
+                    COALESCE(e.total_events, 0) AS total_events
+                FROM agg_page_daily p
+                LEFT JOIN (
+                    SELECT summary_date, page_path, sum(event_count) AS total_events
+                    FROM agg_event_page_daily
+                    WHERE sdk_key = :sdkKey AND summary_date BETWEEN :start AND :end
+                    GROUP BY summary_date, page_path
+                ) e USING (summary_date, page_path)
+                WHERE p.sdk_key = :sdkKey AND p.summary_date BETWEEN :start AND :end
+                ORDER BY p.summary_date DESC, p.page_views DESC
                 """, range.params(user.sdkKey()));
         return map(rows, r -> obj(
                 "date", r.get("date"),
@@ -216,10 +217,10 @@ public class EngagementController {
         DateRange range = DateRange.required(startDate, endDate);
         List<Map<String, Object>> rows = db.list("""
                 SELECT summary_date AS date, page_path, sessions, unique_users,
-                       round((time_on_page_sum / NULLIF(unique_users, 0))::numeric, 2) AS avg_session_seconds
-                  FROM agg_page_daily
-                 WHERE sdk_key = :sdkKey AND summary_date BETWEEN :start AND :end
-                 ORDER BY summary_date, sessions DESC
+                    round((time_on_page_sum / NULLIF(unique_users, 0))::numeric, 2) AS avg_session_seconds
+                FROM agg_page_daily
+                WHERE sdk_key = :sdkKey AND summary_date BETWEEN :start AND :end
+                ORDER BY summary_date, sessions DESC
                 """, range.params(user.sdkKey()));
         return map(rows, r -> obj(
                 "date", r.get("date"),
@@ -248,27 +249,27 @@ public class EngagementController {
     private List<Map<String, Object>> activeUsers(AuthUser user, DateRange range) {
         return db.list("""
                 SELECT d::date AS date,
-                       (SELECT count(*) FROM agg_daily_users u
-                         WHERE u.sdk_key = :sdkKey AND u.summary_date = d::date) AS dau,
-                       (SELECT count(DISTINCT client_id) FROM agg_daily_users u
-                         WHERE u.sdk_key = :sdkKey AND u.summary_date BETWEEN d::date - 6 AND d::date) AS wau,
-                       (SELECT count(DISTINCT client_id) FROM agg_daily_users u
-                         WHERE u.sdk_key = :sdkKey AND u.summary_date BETWEEN d::date - 29 AND d::date) AS mau
-                  FROM generate_series(CAST(:start AS date), CAST(:end AS date), interval '1 day') d
-                 ORDER BY 1
+                    (SELECT count(*) FROM agg_daily_users u
+                      WHERE u.sdk_key = :sdkKey AND u.summary_date = d::date) AS dau,
+                    (SELECT count(DISTINCT client_id) FROM agg_daily_users u
+                      WHERE u.sdk_key = :sdkKey AND u.summary_date BETWEEN d::date - 6 AND d::date) AS wau,
+                    (SELECT count(DISTINCT client_id) FROM agg_daily_users u
+                      WHERE u.sdk_key = :sdkKey AND u.summary_date BETWEEN d::date - 29 AND d::date) AS mau
+                FROM generate_series(CAST(:start AS date), CAST(:end AS date), interval '1 day') d
+                ORDER BY 1
                 """, range.params(user.sdkKey()));
     }
 
     private List<Map<String, Object>> exitRates(AuthUser user, DateRange range, int limit) {
         List<Map<String, Object>> rows = db.list("""
                 SELECT page_path, sum(page_views) AS page_views, sum(exits) AS exits,
-                       round(sum(exits) * 100.0 / sum(page_views), 2) AS exit_rate
-                  FROM agg_page_daily
-                 WHERE sdk_key = :sdkKey AND summary_date BETWEEN :start AND :end
-                 GROUP BY page_path
+                    round(sum(exits) * 100.0 / sum(page_views), 2) AS exit_rate
+                FROM agg_page_daily
+                WHERE sdk_key = :sdkKey AND summary_date BETWEEN :start AND :end
+                GROUP BY page_path
                 HAVING sum(page_views) > 0
-                 ORDER BY exit_rate DESC
-                 LIMIT :limit
+                ORDER BY exit_rate DESC
+                LIMIT :limit
                 """, range.params(user.sdkKey()).addValue("limit", limit(limit)));
         return map(rows, r -> obj(
                 "page_path", r.get("page_path"),

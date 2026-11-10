@@ -71,8 +71,8 @@ public class TrafficService {
 
         List<Map<String, Object>> hourlyRows = db.list("""
                 SELECT to_char(timestamp, 'HH24') AS hour, count(*) AS visitors
-                  FROM events WHERE %s
-                 GROUP BY 1
+                FROM events WHERE %s
+                GROUP BY 1
                 """.formatted(clickWhere), clickParams);
         Map<String, Long> byHour = new HashMap<>();
         hourlyRows.forEach(r -> byHour.put(Values.str(r.get("hour")), Values.toLong(r.get("visitors"))));
@@ -87,10 +87,10 @@ public class TrafficService {
 
         List<Map<String, Object>> mainPageNav = db.list("""
                 SELECT page_path AS page, count(*) AS clicks, count(DISTINCT user_id) AS unique_clicks
-                  FROM events WHERE %s AND page_path <> '/'
-                 GROUP BY page_path
-                 ORDER BY clicks DESC
-                 LIMIT 10
+                FROM events WHERE %s AND page_path <> '/'
+                GROUP BY page_path
+                ORDER BY clicks DESC
+                LIMIT 10
                 """.formatted(periodWhere), periodParams);
         List<Map<String, Object>> mainPageNavigation = new ArrayList<>();
         for (int i = 0; i < mainPageNav.size(); i++) {
@@ -124,11 +124,11 @@ public class TrafficService {
                 ZonedDateTime firstHour = now.truncatedTo(ChronoUnit.HOURS).minusHours(23);
                 Map<String, Long> values = toMap(db.list("""
                         SELECT to_char(summary_date + make_interval(hours => summary_hour), 'YYYY-MM-DD HH24') AS label,
-                               sum(users) AS visitors
-                          FROM agg_user_session_hourly
-                         WHERE sdk_key = :sdkKey AND summary_date BETWEEN :startDate AND :endDate
-                           AND summary_date + make_interval(hours => summary_hour) >= :since %s
-                         GROUP BY 1
+                            sum(users) AS visitors
+                        FROM agg_user_session_hourly
+                        WHERE sdk_key = :sdkKey AND summary_date BETWEEN :startDate AND :endDate
+                            AND summary_date + make_interval(hours => summary_hour) >= :since %s
+                        GROUP BY 1
                         """.formatted(segmentFilter), Db.params("sdkKey", f.sdkKey(),
                         "startDate", firstHour.toLocalDate(), "endDate", today,
                         "since", firstHour.toLocalDateTime(), "gender", f.gender(), "ageGroup", f.ageGroup())));
@@ -175,10 +175,10 @@ public class TrafficService {
         Map<LocalDate, Long> result = new LinkedHashMap<>();
         db.list("""
                 SELECT summary_date, sum(users) AS visitors
-                  FROM agg_user_session_daily
-                 WHERE sdk_key = :sdkKey AND summary_date BETWEEN :start AND :end %s
-                 GROUP BY summary_date
-                 ORDER BY summary_date
+                FROM agg_user_session_daily
+                WHERE sdk_key = :sdkKey AND summary_date BETWEEN :start AND :end %s
+                GROUP BY summary_date
+                ORDER BY summary_date
                 """.formatted(segmentFilter), Db.params("sdkKey", f.sdkKey(), "start", start, "end", end,
                         "gender", f.gender(), "ageGroup", f.ageGroup()))
                 .forEach(r -> result.put(LocalDate.parse(Values.str(r.get("summary_date"))),
@@ -190,10 +190,10 @@ public class TrafficService {
                                                    MapSqlParameterSource params) {
         return db.list("""
                 SELECT %1$s AS value, count(*) AS visitors
-                  FROM events WHERE %2$s
-                 GROUP BY %1$s
-                 ORDER BY visitors DESC
-                 LIMIT 10
+                FROM events WHERE %2$s
+                GROUP BY %1$s
+                ORDER BY visitors DESC
+                LIMIT 10
                 """.formatted(column, where), params).stream().map(r -> {
             String value = Values.str(r.get("value"));
             return obj(key, value.isEmpty() ? "(없음)" : value, "visitors", Values.toLong(r.get("visitors")));
