@@ -1,10 +1,10 @@
-
 # node modules (공통)
 node_modules/
 
 # 빌드 결과물
 dist/
 build/
+temp/
 
 # 환경 변수
 .env
@@ -51,14 +51,6 @@ ecosystem.config.js
 # package-lock.json 은 보통 포함 (의존성 고정 목적)
 # yarn.lock
 # pnpm-lock.yaml
-
-# 백엔드 전용
-backend/dist/
-backend/.env
-
-# 프론트엔드 전용
-frontend/dist/
-frontend/.env
 
 # .next/ 혹은 .vercel 등 배포 도구 쓸 경우
 .next/
