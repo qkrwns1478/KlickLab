@@ -7,7 +7,6 @@ import {
   Tooltip,
   ResponsiveContainer,
   Legend,
-  LabelList,
 } from 'recharts';
 
 interface ChannelGroupData {
@@ -129,7 +128,6 @@ export const ChannelGroupStackedChart: React.FC<ChannelGroupStackedChartProps> =
 
     // console.log('채널별 그룹화:', groupedByChannel);
 
-    const allDeviceTypes = ['mobile', 'desktop'];
 
     const result = Object.entries(groupedByChannel)
       .filter(([channel]) => channel && channel.trim() !== '')

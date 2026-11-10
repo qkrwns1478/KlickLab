@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { BrowserRouter, Routes, Route, Navigate, useNavigate, useLocation, Outlet } from 'react-router-dom';
+import { useEffect } from 'react';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Dashboard } from './components/dashboard/Dashboard';
 import { useAuthStore } from './store/useAuthStore';
 import { setToken, isUsingLocalStorage } from './utils/storage';
@@ -133,7 +133,7 @@ function App() {
           </SegmentFilterProvider>
         </ConversionEventProvider>
       ) : (
-        <AppRoutesWithoutProviders authState={authState} />
+        <AppRoutesWithoutProviders />
       )}
     </BrowserRouter>
   );

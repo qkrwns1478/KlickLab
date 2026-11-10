@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Tooltip } from 'react-tooltip';
-import { useConversionEvent } from '../../context/ConversionEventContext';
+import { useConversionEvent } from '../../context/conversionEventContextValue';
 
 interface LandingData {
   landing: string;
@@ -16,7 +15,6 @@ interface LandingConversionResponse {
   data: LandingData[];
 }
 
-const formatNumber = (num: number) => num.toLocaleString();
 
 export const LandingConversionTable: React.FC = () => {
   const { currentEvent } = useConversionEvent();
@@ -73,7 +71,6 @@ export const LandingConversionTable: React.FC = () => {
     return primarySort;
   });
 
-  const maxConversionRate = data.length > 0 ? Math.max(...data.map(landing => landing.conversionRate)) : 0;
 
   if (loading) {
     return (
@@ -118,7 +115,7 @@ export const LandingConversionTable: React.FC = () => {
         <div className="w-12 text-right pr-1">전환율</div>
       </div>
       <div className="flex-1 overflow-y-auto">
-        {sortedData.map((landing, idx) => (
+        {sortedData.map((landing) => (
           <div key={`${landing.landing}-${landing.source}-${landing.medium}`} className="mb-3">
             <div className="flex justify-between items-center">
               <span className="font-medium text-gray-900 text-sm">{landing.landing}</span>

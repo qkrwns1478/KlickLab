@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 // import { Tooltip } from 'react-tooltip';
-import mockData from '../../data/channelConversionMockData.json';
 import HorizontalBarChart from '../../components/HorizontalBarChart';
 
 interface ChannelData {
@@ -38,8 +37,8 @@ export const ChannelConversionTable: React.FC<ChannelConversionTableProps> = ({
   const [data, setData] = useState<ChannelData[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [sortBy, setSortBy] = useState<'conversionRate' | 'totalSessions' | 'convertedSessions'>('conversionRate');
-  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+  const [sortBy] = useState<'conversionRate' | 'totalSessions' | 'convertedSessions'>('conversionRate');
+  const [sortOrder] = useState<'asc' | 'desc'>('desc');
 
   const fetchChannelConversionData = async () => {
     try {
@@ -75,9 +74,7 @@ export const ChannelConversionTable: React.FC<ChannelConversionTableProps> = ({
     } catch (err) {
       console.error('Channel Conversion API Error:', err);
       setError(err instanceof Error ? err.message : '알 수 없는 오류가 발생했습니다.');
-      // 에러 발생 시 목업 데이터로 대체
-      // console.log('API 호출 실패, 목업 데이터로 대체');
-      setData(mockData as ChannelData[]);
+      setData([]);
     } finally {
       setLoading(false);
     }
@@ -87,14 +84,6 @@ export const ChannelConversionTable: React.FC<ChannelConversionTableProps> = ({
     fetchChannelConversionData();
   }, [dateRange]);
 
-  const handleSort = (field: 'conversionRate' | 'totalSessions' | 'convertedSessions') => {
-    if (sortBy === field) {
-      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
-    } else {
-      setSortBy(field);
-      setSortOrder('desc');
-    }
-  };
 
   const sortedData = [...data].sort((a, b) => {
     const aValue = a[sortBy];
@@ -109,9 +98,7 @@ export const ChannelConversionTable: React.FC<ChannelConversionTableProps> = ({
     return primarySort;
   }).slice(0, 5);
 
-  const maxConversionRate = data.length > 0 ? Math.max(...data.map(channel => channel.conversionRate)) : 0;
 
-  const formatNumber = (num: number) => num.toLocaleString();
 
   if (loading) {
     return (

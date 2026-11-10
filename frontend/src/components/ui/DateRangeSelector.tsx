@@ -69,11 +69,11 @@ const customStaticRanges = createStaticRanges([
 ]);
 
 interface DateRangeSelectorProps {
-  dateRange: { startDate: Date; endDate: Date }[];
-  tempRange: { startDate: Date; endDate: Date }[];
+  dateRange: { startDate: Date; endDate: Date; key: string }[];
+  tempRange: { startDate: Date; endDate: Date; key: string }[];
   showPicker: boolean;
-  setDateRange: (range: { startDate: Date; endDate: Date }[]) => void;
-  setTempRange: (range: { startDate: Date; endDate: Date }[]) => void;
+  setDateRange: (range: { startDate: Date; endDate: Date; key: string }[]) => void;
+  setTempRange: (range: { startDate: Date; endDate: Date; key: string }[]) => void;
   setShowPicker: (val: boolean) => void;
   onApply: (start: Date, end: Date) => void;
 }
@@ -134,7 +134,6 @@ const DateRangeSelector: React.FC<DateRangeSelectorProps> = ({
               staticRanges={customStaticRanges}
               inputRanges={[]}
               locale={ko}
-              showSelectionPreview
               moveRangeOnFirstSelection={false}
             />
             <div className="flex justify-end gap-2 mt-2">

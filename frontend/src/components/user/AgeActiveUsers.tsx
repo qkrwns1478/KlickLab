@@ -2,7 +2,6 @@
 import React, { useState, useMemo, useCallback } from 'react';
 import { getRangeLabel } from '../../utils/getRangeLabel';
 import { AGE_GROUP_ORDER, AGE_GROUP_LABELS, convertAgeToGroup } from '../../utils/ageUtils';
-import dayjs from 'dayjs';
 
 // 타입 정의
 interface AgeData {
@@ -34,7 +33,6 @@ interface AgeActiveUsersProps {
 // 하위 호환성을 위해 기존 변수들을 유지하되, 새로운 유틸리티 함수들을 참조합니다
 const ageOrder = AGE_GROUP_ORDER.slice(0, -1); // 'unknown' 제외
 const ageLabels = AGE_GROUP_LABELS;
-const ageLabelsSummary = AGE_GROUP_LABELS;
 
 export const AgeActiveUsers: React.FC<AgeActiveUsersProps> = ({ 
   dateRange, 
@@ -105,10 +103,6 @@ export const AgeActiveUsers: React.FC<AgeActiveUsersProps> = ({
   }, [ageData]);
 
   // 최대 높이 계산 (메모화)
-  const maxBarHeight = useMemo(() => {
-    const maxUsers = Math.max(...ageData.map(d => d.users));
-    return maxUsers > 0 ? 180 : 50;
-  }, [ageData]);
 
   // 이벤트 핸들러들 (메모화)
   const handleMouseEnter = useCallback((ageId: string, event: React.MouseEvent) => {

@@ -1,23 +1,6 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
-
-export interface SegmentFilter {
-  id: string;
-  name: string;
-  segment: string;
-  conditions: Record<string, any>;
-  createdAt: number;
-  [key: string]: any;
-}
-
-interface SegmentFilterContextType {
-  filter: SegmentFilter;
-  setFilter: (filter: SegmentFilter | ((prev: SegmentFilter) => SegmentFilter)) => void;
-  savedFilters: SegmentFilter[];
-  saveFilter: (filter: SegmentFilter) => void;
-  loadFilter: (filterId: string) => void;
-  deleteFilter: (filterId: string) => void;
-  generateFilterName: (conditions: Record<string, any>) => string;
-}
+import React, { useState, useEffect } from 'react';
+import { SegmentFilterContext } from './segmentFilterContextValue';
+import type { SegmentFilter } from './segmentFilterContextValue';
 
 const defaultFilter: SegmentFilter = { 
   id: '',
@@ -28,14 +11,6 @@ const defaultFilter: SegmentFilter = {
 };
 
 const STORAGE_KEY = 'segmentFilters';
-
-const SegmentFilterContext = createContext<SegmentFilterContextType | undefined>(undefined);
-
-export const useSegmentFilter = () => {
-  const ctx = useContext(SegmentFilterContext);
-  if (!ctx) throw new Error('useSegmentFilter must be used within SegmentFilterProvider');
-  return ctx;
-};
 
 // localStorage 유틸리티 함수들
 const loadFiltersFromStorage = (): SegmentFilter[] => {

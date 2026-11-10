@@ -1,6 +1,5 @@
 import React from 'react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
-import { Monitor, Smartphone, Globe } from 'lucide-react';
 
 interface DeviceBrowserData {
   name: string;
@@ -16,9 +15,8 @@ interface DeviceBrowserDonutChartProps {
 }
 
 export const DeviceBrowserDonutChart: React.FC<DeviceBrowserDonutChartProps> = ({ 
-  deviceData, 
-  browserData, 
-  refreshKey 
+  deviceData,
+  browserData
 }) => {
   const deviceColors = ['#3B82F6', '#10B981', '#F59E0B'];
   const browserColors = ['#8B5CF6', '#EF4444', '#06B6D4', '#84CC16', '#F97316'];
@@ -79,7 +77,7 @@ export const DeviceBrowserDonutChart: React.FC<DeviceBrowserDonutChartProps> = (
                   paddingAngle={2}
                   dataKey="value"
                 >
-                  {deviceData.map((entry, index) => (
+                  {deviceData.map((_, index) => (
                     <Cell key={`device-cell-${index}`} fill={deviceColors[index % deviceColors.length]} />
                   ))}
                 </Pie>
@@ -107,7 +105,7 @@ export const DeviceBrowserDonutChart: React.FC<DeviceBrowserDonutChartProps> = (
                   paddingAngle={2}
                   dataKey="value"
                 >
-                  {browserData.map((entry, index) => (
+                  {browserData.map((_, index) => (
                     <Cell key={`browser-cell-${index}`} fill={browserColors[index % browserColors.length]} />
                   ))}
                 </Pie>

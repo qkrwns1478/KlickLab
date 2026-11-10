@@ -1,5 +1,5 @@
 import React from 'react';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 // 타입 정의를 직접 포함
 interface VisitorData {
@@ -68,18 +68,6 @@ export const VisitorChart: React.FC<VisitorChartProps> = ({ data, period = 'dail
   };
 
   // x축 범례 텍스트를 period에 따라 동적으로 생성
-  const getXAxisLabel = () => {
-    switch (period) {
-      case 'hourly':
-        return '시간';
-      case 'weekly':
-        return '주차';
-      case 'monthly':
-        return '월';
-      default:
-        return '날짜';
-    }
-  };
 
   const CustomTooltip = ({ active, payload, label }: any) => {
     if (active && payload && payload.length) {

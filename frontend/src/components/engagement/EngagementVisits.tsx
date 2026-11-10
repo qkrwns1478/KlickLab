@@ -61,7 +61,7 @@ const EngagementVisits: React.FC<EngagementVisitsProps> = ({ visitStats }) => {
         title="페이지 경로"
         onSortChange={(KEY) => setSortKey(KEY)}
       >
-        {(selectedKeys, chartData, lineDefs, unit) => (
+        {(selectedKeys, _chartData, _lineDefs, unit) => (
           <HorizontalLineChart
             data={(() => {
               const uniqueDates = [...new Set(visitStats.map(d => d.date))].sort();

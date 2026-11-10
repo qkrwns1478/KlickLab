@@ -3,13 +3,6 @@ import { aggregateRegionData } from '../../utils/regionUtils';
 
 // 타입 정의
 interface TrendData { time: string; users: number; }
-interface SourceData { source: string; users: number; }
-interface SummaryData {
-  active_users_30min: number;
-  totalEvents?: number;
-  pageviews?: number;
-  clicks?: number;
-}
 
 interface RealtimeUsersSectionProps {
   activeUsers?: number;

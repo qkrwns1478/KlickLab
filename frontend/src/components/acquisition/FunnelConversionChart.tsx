@@ -12,7 +12,7 @@ interface FunnelConversionChartProps {
   refreshKey: number;
 }
 
-export const FunnelConversionChart: React.FC<FunnelConversionChartProps> = ({ data, refreshKey }) => {
+export const FunnelConversionChart: React.FC<FunnelConversionChartProps> = ({ data }) => {
   const colors = ['#3B82F6', '#10B981'];
 
   const CustomTooltip = ({ active, payload, label }: any) => {
@@ -52,7 +52,7 @@ export const FunnelConversionChart: React.FC<FunnelConversionChartProps> = ({ da
           />
           <Tooltip content={<CustomTooltip />} />
           <Bar dataKey="visitors" radius={[4, 4, 0, 0]}>
-            {data.map((entry, index) => (
+            {data.map((_, index) => (
               <Cell key={`cell-${index}`} fill={colors[index % colors.length]} />
             ))}
           </Bar>
