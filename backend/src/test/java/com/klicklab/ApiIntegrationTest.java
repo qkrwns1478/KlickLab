@@ -34,6 +34,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.cookie;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -138,6 +139,19 @@ class ApiIntegrationTest {
         mvc.perform(get("/api/stats/visitors").header("Authorization", "Bearer nope"))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.message").value("유효하지 않은 토큰입니다"));
+    }
+
+    @Test
+    void corsAllowsViteDevServerAndRejectsUnknownOrigins() throws Exception {
+        String body = "{\"email\":\"owner@klicklab.co.kr\",\"password\":\"pw1234\"}";
+        mvc.perform(post("/api/auth/login").contentType(MediaType.APPLICATION_JSON).content(body)
+                        .header("Origin", "http://localhost:5173"))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Access-Control-Allow-Origin", "http://localhost:5173"))
+                .andExpect(header().string("Access-Control-Allow-Credentials", "true"));
+        mvc.perform(post("/api/auth/login").contentType(MediaType.APPLICATION_JSON).content(body)
+                        .header("Origin", "http://evil.example.com"))
+                .andExpect(status().isForbidden());
     }
 
     @Test

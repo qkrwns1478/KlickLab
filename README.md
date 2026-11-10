@@ -155,7 +155,9 @@ JWT_REFRESH_SECRET=
 AUTH_AUTO_APPROVE=false
 ```
 
-### 4. 백엔드 실행 (Java 21)
+### 4. 백엔드 실행 (JDK 17 이상)
+
+Gradle 실행에는 JDK 17 이상이 필요하며, 프로젝트가 요구하는 JDK 21은 없으면 첫 빌드 때 자동으로 내려받습니다.
 
 ```bash
 cd backend

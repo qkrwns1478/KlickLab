@@ -83,5 +83,44 @@
 
 ## 참고
 
-- 빌드 검증에 쓴 JDK 21은 세션 임시 디렉토리의 사본이므로 로컬에서는 JDK 21을 별도로 설치해야 함
-- 로컬에서 5432 포트가 사용 중이면 `DB_PORT=5433 docker compose up -d` 사용
+- Gradle 실행에는 JDK 17 이상이 필요하며, JDK 21은 없으면 첫 빌드 때 자동으로 내려받음 (아래 추가 작업 참고)
+- 로컬에서 5432 포트가 사용 중이면 `backend/.env`에 `DB_PORT=5433` 지정 (아래 추가 작업 참고)
+
+---
+
+## 추가 작업: 로컬 실행 오류 수정
+
+### 1. `bootRun` 시 JDK 21을 찾지 못함
+- 증상: `Cannot find a Java installation on your machine ... matching: {languageVersion=21 ...}`
+- 원인: 프로젝트가 Java 21 toolchain을 요구하는데 로컬에 JDK 21이 없음 (검증 때는 세션 임시 JDK 21을 사용해 드러나지 않았음)
+- 조치: `settings.gradle`에 `org.gradle.toolchains.foojay-resolver-convention` 1.0.0 플러그인 추가 → JDK 21이 없으면 `~/.gradle/jdks`에 자동 다운로드
+- 검증: JDK 17만 있는 환경에서 Gradle 실행 시 JDK 21 자동 다운로드 후 컴파일 성공
+
+### 2. `bootRun` 시 DB 비밀번호 인증 실패 (`28P01`)
+- 증상: Flyway 연결 단계에서 인증 실패, 에러 메시지가 깨진 한글로 출력
+- 원인: `.env`의 `DB_URL`이 5432를 가리키는데, 이 PC에 직접 설치된 PostgreSQL이 5432를 사용 중이라 컨테이너가 아닌 로컬 서버에 접속함 (한국어 메시지도 로컬 서버가 보낸 것)
+- 조치
+  - `backend/.env`: `DB_PORT=5433` 추가, `DB_URL` 포트를 5433으로 변경 (`docker compose`도 같은 `.env`를 읽어 컨테이너를 5433으로 실행)
+  - `backend/.env.example`: `DB_PORT` 항목 추가, `DB_URL`이 `${DB_PORT}`를 사용하도록 변경
+  - `application.yml`: 기본 DB URL이 `DB_PORT`를 따르도록 변경 (`localhost:${DB_PORT:5432}`)
+- 검증: 별도 환경변수 없이 `.env`만으로 `./gradlew bootRun` 실행 → 5433 컨테이너에 연결, 기동 및 `/health` `UP` 확인
+
+### 3. 프론트엔드 접속 시 import 오류
+- 증상: `localhost:5173` 접속 시 `Failed to resolve import "../../../../backend/data/channelConversionMockData.json"`
+- 원인: 마이그레이션 중 `backend/data/channelConversionMockData.json`을 미사용 파일로 판단해 삭제했으나, 사용 여부를 백엔드 안에서만 확인함. 실제로는 `ChannelConversionTable.tsx`가 API 실패 시 대체 데이터로 사용 중이었음
+- 조치: 삭제 직전 커밋(`d97afed^`)의 파일 내용을 `frontend/src/data/channelConversionMockData.json`으로 복원하고 import 경로를 `../../data/channelConversionMockData.json`으로 변경 (프론트엔드가 `backend/` 디렉토리에 의존하지 않도록 함)
+- 검증: `vite build` 성공, 프론트엔드에서 `backend/`를 참조하는 경로가 더 이상 없음
+
+### 4. 로그인 시 `Invalid CORS request` 오류 + 로그인 정보 평문 저장 제거
+- 증상: 로그인 버튼 클릭 시 `Unexpected token 'I', "Invalid CORS request" is not valid JSON`
+- 원인 1 (CORS): Vite 개발 서버(`localhost:5173`)의 요청이 `Origin: http://localhost:5173`으로 도착하는데 백엔드는 `8080`만 허용. Spring이 일반 텍스트 `Invalid CORS request`(403)로 거절했고, 프론트엔드가 이를 JSON으로 파싱하려다 예외 발생
+- 원인 2 (보안): 프론트엔드가 "로그인 상태 유지" 선택 시 이메일·비밀번호를 `localStorage`(`klicklab_credentials`)에 평문 저장하고 앱 시작 시 이를 이용해 재로그인. 이미 서버가 내려주는 HttpOnly `refreshToken` 쿠키로 복원하므로 중복이었음
+- 조치 (백엔드)
+  - 기본 허용 Origin에 `http://localhost:5173`, `http://127.0.0.1:5173` 추가 (`application.yml`, `KlickLabProperties`), `.env.example`에 `CORS_ALLOWED_ORIGINS` 안내 추가
+  - 통합 테스트 `corsAllowsViteDevServerAndRejectsUnknownOrigins` 추가 (허용 Origin 통과, 미허용 Origin 403)
+- 조치 (프론트엔드)
+  - `storage.ts`: 자격 증명 저장/조회(`getSavedCredentials`) 및 자격 증명 기반 재로그인(`attemptAutoLogin`) 제거, `setAutoLogin`은 체크 여부만 저장. 앱 로드 시 기존에 저장된 `klicklab_credentials`를 삭제(`purgeLegacyCredentials`)
+  - `App.tsx`: 시작 시 refresh 쿠키로만 로그인 상태 복원 (자격 증명 재로그인 단계 제거)
+  - `LoginForm.tsx`: 이메일/비밀번호 복원 제거, 응답이 JSON이 아니어도 안전하게 파싱하고 403은 CORS 안내 메시지 표시
+- 동작 변경: 리프레시 쿠키 만료(7일) 후에는 자동 재로그인이 되지 않고 다시 로그인해야 함
+- 검증: 백엔드 테스트 18개(통합 13 + 단위 5) 통과, 별도 포트(4001)에서 Origin 5173 로그인·쿠키 재발급·미허용 Origin 403·프리플라이트 200 확인, `vite build` 성공
