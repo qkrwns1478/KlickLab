@@ -4,6 +4,9 @@
     <img src="https://raw.githubusercontent.com/Eatventory/KlickLab/refs/heads/main/frontend/src/assets/klicklab.png" width="480">
 </p>
 
+*   작성일: 2025년 7월 25일
+*   기준 버전: `v1.1.0`
+
 ### 1. 프로젝트 개요: 어떤 서비스인가요?
 
 **KlickLab**은 **클릭스트림 기반의 실시간 데이터 분석 플랫폼**입니다. 웹사이트에 방문하는 사용자들의 행동(페이지 조회, 클릭 등)을 실시간으로 수집하고, 분석 대시보드를 통해 시각화하여 보여주는 서비스입니다.
