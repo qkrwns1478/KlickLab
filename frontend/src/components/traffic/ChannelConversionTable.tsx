@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 // import { Tooltip } from 'react-tooltip';
-import mockData from '../../../../backend/data/channelConversionMockData.json';
+import mockData from '../../data/channelConversionMockData.json';
 import HorizontalBarChart from '../../components/HorizontalBarChart';
 
 interface ChannelData {

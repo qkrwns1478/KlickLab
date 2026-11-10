@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useNavigate, useLocation, Outlet } from 'react-router-dom';
 import { Dashboard } from './components/dashboard/Dashboard';
 import { useAuthStore } from './store/useAuthStore';
-import { setToken, attemptAutoLogin, isUsingLocalStorage } from './utils/storage';
+import { setToken, isUsingLocalStorage } from './utils/storage';
 import LoginPage from './components/auth/LoginPage';
 import RegisterPage from './components/auth/RegisterPage';
 import ErrorPage from "./Error";
@@ -95,7 +95,7 @@ function App() {
   useEffect(() => {
     const initializeAuth = async () => {
       try {
-        // 1. 먼저 refresh token으로 로그인 시도
+        // 1. HttpOnly refresh token 쿠키로 로그인 상태 복원 시도
         const res = await fetch("/api/auth/refresh", {
           method: "POST",
           credentials: "include",
@@ -109,14 +109,7 @@ function App() {
           return;
         }
 
-        // 2. refresh token이 없으면 자동 로그인 시도
-        const autoLoginSuccess = await attemptAutoLogin();
-        if (autoLoginSuccess) {
-          setAuthState("loggedIn");
-          return;
-        }
-
-        // 3. 둘 다 실패하면 로그아웃 상태
+        // 2. refresh token이 없거나 만료되었으면 로그아웃 상태 (다시 로그인 필요)
         setAuthState("loggedOut");
       } catch (error) {
         console.error('Auth initialization failed:', error);

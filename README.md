@@ -15,19 +15,19 @@
 8. [설치 및 실행](#설치-및-실행)
 
 ## 프로젝트 소개
+
 > **KlickLab**은 웹사이트에서 발생하는 행동 데이터를 실시간 수집·구조화하여<br />
 > 운영자가 **Data-Driven** 방식으로 합리적인 의사결정을 내릴 수 있도록<br />
 > 지원하는 **클릭스트림** 분석 플랫폼입니다.
-- 배포 URL : https://klicklab.co.kr/
-- 소개 영상 : https://jungle.krafton.com/board/project/read/213
+
+- 소개 영상 : https://jungle.krafton.com/news/64
 
 ## 팀원 소개
-| <img src="https://img.shields.io/badge/Project_Leader-FF5733" /> | <img src="https://img.shields.io/badge/Frontend_Leader-%2300264B" /> | <img src="https://img.shields.io/badge/Backend_Leader-%2310069F" /> | <img src="https://img.shields.io/badge/Database_Leader-blue" /> | <img src="https://img.shields.io/badge/발사대_Leader-%23009688" /> | <img src="https://img.shields.io/badge/Infra_Leader-003df3" /> |
-| :--------------------------------------------------------------: | :--------------------------------------------------------------: | :--------------------------------------------------------------------------: | :-----------------------------------------------------------: | :-----------------------------------------------------------: | :-----------------------------------------------------------: |
+
 | <img src="https://avatars.githubusercontent.com/PurifiedPotion" width="100"/> | <img src="https://avatars.githubusercontent.com/jaykxo" width="100"/> | <img src="https://avatars.githubusercontent.com/qkrwns1478" width="100"/> | <img src="https://avatars.githubusercontent.com/whtierice" width="100"/> | <img src="https://avatars.githubusercontent.com/Fharena" width="100"/> | <img src="https://avatars.githubusercontent.com/At-this-moment" width="100"/> |
+| :---: | :---: | :---: | :---: | :---: | :---: |
 | [@PurifiedPotion](https://github.com/PurifiedPotion) | [@jaykxo](https://github.com/jaykxo) | [@qkrwns1478](https://github.com/qkrwns1478) | [@whtierice](https://github.com/whtierice) | [@Fharena](https://github.com/Fharena) | [@At-this-moment](https://github.com/At-this-moment) |
 | 김관수 | 김재현 | 박준식 | 오주영 | 윤석주 | 이현재 |
-<!-- | 기능1 설명 | 기능2 설명 | 기능3 설명 | 기능4 설명 | 기능5 설명 | 기능6 설명 | -->
 
 ## 대시보드 스크린샷
 
@@ -60,63 +60,49 @@
 
 <details>
 <summary>포스터 보기</summary>
-
 <div align="center">
-
 <img src="https://github.com/user-attachments/assets/2982378f-6e4d-42e7-be14-10f9972d5573" width="80%" alt="KlickLab Poster" />
-
 </div>
-
 </details>
 
 ## 아키텍처
 
 <details>
 <summary>아키텍처 다이어그램 보기</summary>
-
 <div align="center">
-
 <img src="https://github.com/user-attachments/assets/e1b65435-379c-494c-a612-03a6ae95a116" width="80%" alt="KlickLab Architecture" />
-
 </div>
-
 </details>
 
 <details>
 <summary>아키텍처 관련 글 모음</summary>
 
 ### Architectural Improvements 시리즈
-1. [Architectural Improvements 1](https://velog.io/@qnfrma1997/Architectural-Improvements-1)  
-2. [Architectural Improvements 2](https://velog.io/@qnfrma1997/Architectural-Improvements-2)  
-3. [Architectural Improvements 3](https://velog.io/@qnfrma1997/Architectural-Improvements-3)  
-4. [Architectural Improvements 4](https://velog.io/@qnfrma1997/Architectural-Improvements4)  
+
+1. [Architectural Improvements 1](https://velog.io/@qnfrma1997/Architectural-Improvements-1)
+2. [Architectural Improvements 2](https://velog.io/@qnfrma1997/Architectural-Improvements-2)
+3. [Architectural Improvements 3](https://velog.io/@qnfrma1997/Architectural-Improvements-3)
+4. [Architectural Improvements 4](https://velog.io/@qnfrma1997/Architectural-Improvements4)
 
 ### DeepDive 시리즈
-- [DeepDive: GC Triggered Stop-the-World](https://velog.io/@qnfrma1997/DeepDive-GC-Triggered-Stop-the-World)  
-- [DeepDive: Many Over Mighty](https://velog.io/@qnfrma1997/DeepDive-Many-Over-Mighty)  
+
+- [DeepDive: GC Triggered Stop-the-World](https://velog.io/@qnfrma1997/DeepDive-GC-Triggered-Stop-the-World)
+- [DeepDive: Many Over Mighty](https://velog.io/@qnfrma1997/DeepDive-Many-Over-Mighty)
 
 </details>
-
 
 ## 데이터 흐름도
 
 <details>
 <summary>데이터 흐름도 보기</summary>
-
 <div align="center">
-
 ![Infra Architecture for KlickLab](https://github.com/user-attachments/assets/593b10fd-656f-4b7a-aa1f-e179306dcc1c)
-
-
-
 </div>
-
 </details>
-
 
 ## 기술 스택
 
-### Frontend  
+### Frontend
 ![React](https://img.shields.io/badge/React-20232A?style=flat&logo=react&logoColor=61DAFB)
 ![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?style=flat&logo=typescript&logoColor=white)
 ![Vite](https://img.shields.io/badge/Vite-646CFF?style=flat&logo=vite&logoColor=white)
@@ -126,38 +112,17 @@
 ![Recharts](https://img.shields.io/badge/Recharts-FF4A00?style=flat&logo=chartdotjs&logoColor=white)
 ![HTML5](https://img.shields.io/badge/HTML5-E34F26?style=flat&logo=html5&logoColor=white)
 ![CSS3](https://img.shields.io/badge/CSS3-1572B6?style=flat&logo=css&logoColor=white)
-![Framer Motion](https://img.shields.io/badge/Framer--Motion-000000?style=flat&logo=framer&logoColor=white)
-![Next.js](https://img.shields.io/badge/Next.js-000000?style=flat&logo=next.js&logoColor=white)
 
-### Backend  
-![Node.js](https://img.shields.io/badge/Node.js-339933?style=flat&logo=node.js&logoColor=white)
-![Express](https://img.shields.io/badge/Express-000000?style=flat&logo=express&logoColor=white)
+### Backend
+![Java](https://img.shields.io/badge/Java_21-007396?style=flat&logo=openjdk&logoColor=white)
+![Spring Boot](https://img.shields.io/badge/Spring_Boot-6DB33F?style=flat&logo=springboot&logoColor=white)
+![Spring Security](https://img.shields.io/badge/Spring_Security-6DB33F?style=flat&logo=springsecurity&logoColor=white)
+![Gradle](https://img.shields.io/badge/Gradle-02303A?style=flat&logo=gradle&logoColor=white)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-4169E1?style=flat&logo=postgresql&logoColor=white)
-![ClickHouse](https://img.shields.io/badge/ClickHouse-FFCC00?style=flat&logo=clickhouse&logoColor=black)
+![pgvector](https://img.shields.io/badge/pgvector-4169E1?style=flat&logo=postgresql&logoColor=white)
+![Flyway](https://img.shields.io/badge/Flyway-CC0200?style=flat&logo=flyway&logoColor=white)
 ![JWT](https://img.shields.io/badge/JWT-000000?style=flat&logo=jsonwebtokens&logoColor=white)
-![Prometheus Client](https://img.shields.io/badge/Prom--Client-000000?style=flat&logo=prometheus&logoColor=white)
-![Nginx](https://img.shields.io/badge/Nginx-009639?style=flat&logo=nginx&logoColor=white)
-
-### Infrastructure  
-![Amazon AWS](https://img.shields.io/badge/Amazon_AWS-232F3E?style=flat&logo=amazonaws&logoColor=white)
-![AWS EC2](https://img.shields.io/badge/AWS--EC2-FF9900?style=flat&logo=amazonec2&logoColor=black)
-![AWS MSK](https://img.shields.io/badge/AWS--MSK-FF9900?style=flat&logo=apachekafka&logoColor=white)
-![Amazon CloudWatch](https://img.shields.io/badge/CloudWatch-FF4F8B?style=flat&logo=amazoncloudwatch&logoColor=white)
-![Amazon API Gateway](https://img.shields.io/badge/API--Gateway-FF4F00?style=flat&logo=amazonapigateway&logoColor=white)
-![Elastic Load Balancer](https://img.shields.io/badge/Load--Balancer-0073BB?style=flat&logo=awselasticloadbalancing&logoColor=white)
-![Linux](https://img.shields.io/badge/Linux-FCC624?style=flat&logo=linux&logoColor=black)
-![Ubuntu](https://img.shields.io/badge/Ubuntu-E95420?style=flat&logo=ubuntu&logoColor=white)
-![ClickHouse Keeper](https://img.shields.io/badge/ClickHouse--Keeper-FFCC00?style=flat&logo=zookeeper&logoColor=black)
-![Postman](https://img.shields.io/badge/Postman-FF6C37?style=flat&logo=postman&logoColor=white)
-![Prometheus](https://img.shields.io/badge/Prometheus-E6522C?style=flat&logo=prometheus&logoColor=white)
-![Grafana](https://img.shields.io/badge/Grafana-F46800?style=flat&logo=grafana&logoColor=white)
-
-### Tools
-![npm](https://img.shields.io/badge/npm-CB3837?style=flat&logo=npm&logoColor=white)
-![Cloudflare](https://img.shields.io/badge/Cloudflare-F38020?style=flat&logo=cloudflare&logoColor=white)
-![JavaScript](https://img.shields.io/badge/JavaScript-F7DF1E?style=flat&logo=javascript&logoColor=white)
-![Go](https://img.shields.io/badge/Go-00ADD8?style=flat&logo=go&logoColor=white)
-![workerpool](https://img.shields.io/badge/workerpool-000000?style=flat&logo=nodedotjs&logoColor=white)
+![Micrometer Prometheus](https://img.shields.io/badge/Micrometer--Prometheus-E6522C?style=flat&logo=prometheus&logoColor=white)
 
 ## 설치 및 실행
 
@@ -168,28 +133,39 @@ git clone https://github.com/Eatventory/KlickLab.git
 cd klickLab
 ```
 
-### 2. 백엔드 설치
+### 2. 데이터베이스 실행 (PostgreSQL 17 + pgvector)
 
 ```bash
 cd backend
-npm install
-node index.js
+docker compose up -d          # 5432 포트가 사용 중이면: DB_PORT=5433 docker compose up -d
 ```
+
+스키마는 애플리케이션 기동 시 Flyway(`src/main/resources/db/migration`)가 자동으로 생성합니다.
 
 ### 3. 환경변수 설정
-backend 디렉토리에 `.env` 파일을 생성하고 아래와 같이 설정해 주세요:
-- CLICKHOUSE_PASSWORD와 JWT_SECRET을 입력해주세요.
+`backend/.env.example`을 복사해 `backend/.env`를 만들고 값을 채워주세요. (`.env`는 Spring Boot가 자동으로 읽습니다)
+- `JWT_SECRET`, `JWT_REFRESH_SECRET`는 HS256 서명을 위해 **32바이트 이상**이어야 합니다.
 
 ```bash
-CLICKHOUSE_URL=http://localhost:8123
-CLICKHOUSE_USER=default
-CLICKHOUSE_DB=klicklab
-CLICKHOUSE_PASSWORD=
+DB_URL=jdbc:postgresql://localhost:5432/klicklab
+DB_USERNAME=klicklab
+DB_PASSWORD=klicklab
 JWT_SECRET=
 JWT_REFRESH_SECRET=
+AUTH_AUTO_APPROVE=false
 ```
 
-### 4. 프론트엔드 설치
+### 4. 백엔드 실행 (JDK 17 이상)
+
+Gradle 실행에는 JDK 17 이상이 필요하며, 프로젝트가 요구하는 JDK 21은 없으면 첫 빌드 때 자동으로 내려받습니다.
+
+```bash
+cd backend
+./gradlew bootRun             # API: http://localhost:4000, 메트릭: http://localhost:9091/metrics
+./gradlew test                # Testcontainers 통합 테스트 (Docker 필요)
+```
+
+### 5. 프론트엔드 실행
 
 ```bash
 cd frontend

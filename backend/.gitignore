@@ -1,1 +1,16 @@
 /public/analytics_sdk.js
+
+# Gradle
+.gradle/
+build/
+!gradle/wrapper/gradle-wrapper.jar
+
+# IDE
+.idea/
+*.iml
+.vscode/
+out/
+bin/
+
+# env
+.env
