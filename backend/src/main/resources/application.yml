@@ -14,6 +14,13 @@ spring:
   flyway:
     enabled: true
     locations: classpath:db/migration
+  batch:
+    # 집계 Job 은 AggregationScheduler / --aggregate 명령으로만 실행 (기동 시 자동 실행 안 함)
+    job:
+      enabled: false
+    # 메타데이터 테이블(BATCH_*)은 Flyway V2 마이그레이션이 생성
+    jdbc:
+      initialize-schema: never
   web:
     resources:
       # SDK 스크립트(public/analytics_sdk.js) 제공
@@ -63,6 +70,10 @@ klicklab:
     late-arrival-grace: 1h
     # 기동 시 최근 N일 중 집계 이력이 없는 날짜를 채움
     backfill-days-on-startup: 7
+  # Spring Batch 집계 Job (minutes_* / hourly_* / daily_* / weekly_* 테이블)
+  # 매 10분 minutes, 정각 hourly, 매일 00:10 daily, 매주 월요일 00:30 weekly
+  aggregation:
+    enabled: ${AGGREGATION_ENABLED:true}
 
 logging:
   level:

@@ -3,6 +3,7 @@ package com.klicklab.config;
 import com.klicklab.auth.JwtAuthenticationFilter;
 import com.klicklab.auth.JwtService;
 import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -25,7 +26,9 @@ import java.util.List;
 @Configuration
 public class SecurityConfig {
 
+    // 집계 명령(--aggregate)처럼 웹 서버 없이 실행할 때는 등록하지 않음
     @Bean
+    @ConditionalOnWebApplication
     public SecurityFilterChain securityFilterChain(HttpSecurity http, JwtService jwtService) throws Exception {
         http
                 .csrf(AbstractHttpConfigurer::disable)
