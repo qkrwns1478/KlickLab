@@ -1,9 +1,5 @@
 # 백엔드 기술 스택 마이그레이션 (Spring Boot + PostgreSQL/pgvector)
 
-- 작업일: 2026-11-10
-- 브랜치: `dev`
-- 상태: 작업 트리에 반영됨 (커밋 전)
-
 ## 요청
 
 | 구분 | 기존 | 신규 |
@@ -19,6 +15,8 @@
 - 메트릭: Actuator + Micrometer Prometheus (`:9091/metrics`)
 - API는 `:4000`, 기존 URL과 JSON 응답 형태를 유지하여 프론트엔드는 수정하지 않음
 
+---
+
 ## 작업 내용
 
 ### 1. 기존 코드 분석
@@ -27,7 +25,7 @@
 - 프론트엔드가 사용하는 응답 필드(`age_group`, `summary_date`, `url_path`/`event_path`, ISO `baseTime` 등)를 확인
 
 ### 2. Node.js 백엔드 제거
-- `git rm`으로 `index.js`, `routes/`, `services/`, `utils/`, `middlewares/`, `src/`, `data/`, `package*.json` 삭제 (git 이력에 남아 있음)
+- `git rm`으로 `index.js`, `routes/`, `services/`, `utils/`, `middlewares/`, `src/`, `data/`, `package*.json` 삭제
 
 ### 3. Spring Boot 프로젝트 생성 (`backend/`)
 
@@ -74,15 +72,9 @@
 - **신규 가입 승인**: `AUTH_AUTO_APPROVE` 기본값 `false` (기존 동작을 코드만으로 확인할 수 없어 보수적으로 설정)
 - 유지: `overview/user-stats`의 `changes` 하드코딩 값
 
-## 배포 전 확인 필요
-
-1. 이벤트 수집 파이프라인(Kafka 컨슈머 등)이 이 저장소에 없어 변경하지 못함 → PostgreSQL `events` 테이블에 적재하도록 수정 필요
-2. 기존 ClickHouse 데이터는 이관하지 않음 → `users`, `event_rules`, `event_button`, `conversion_events`, 원천 `events` 이관 후 `RollupService.refreshRange`로 집계 재생성 필요 (기존 bcrypt 해시는 그대로 검증됨)
-3. `JWT_SECRET`, `JWT_REFRESH_SECRET`은 32바이트 이상이어야 기동됨 (같은 시크릿을 쓰면 기존 토큰도 유효)
-4. Grafana 대시보드의 메트릭 이름 갱신 필요
-
 ## 참고
 
+- `JWT_SECRET`, `JWT_REFRESH_SECRET`은 32바이트 이상이어야 기동됨
 - Gradle 실행에는 JDK 17 이상이 필요하며, JDK 21은 없으면 첫 빌드 때 자동으로 내려받음 (아래 추가 작업 참고)
 - 로컬에서 5432 포트가 사용 중이면 `backend/.env`에 `DB_PORT=5433` 지정 (아래 추가 작업 참고)
 
