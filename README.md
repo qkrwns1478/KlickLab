@@ -165,6 +165,19 @@ cd backend
 ./gradlew test                # Testcontainers 통합 테스트 (Docker 필요)
 ```
 
+#### 집계 Job (Spring Batch)
+
+`bootRun` 중에는 `minutes_*` → `hourly_*` → `daily_*` → `weekly_*` 집계 테이블이 자동으로 채워집니다. (매 10분 / 정각 / 매일 00:10 / 매주 월요일 00:30)
+특정 구간만 다시 집계하려면 웹 서버 없이 한 번 실행하고 종료하는 `--aggregate` 옵션을 사용합니다. 서버가 실행 중이어도 함께 쓸 수 있습니다.
+
+```bash
+./gradlew bootRun --args="--aggregate=minutes --at=2026-11-09T14:30"   # 10분 (생략 시 직전 구간)
+./gradlew bootRun --args="--aggregate=hourly --at=2026-11-09T14"
+./gradlew bootRun --args="--aggregate=daily --at=2026-11-09"
+./gradlew bootRun --args="--aggregate=weekly --at=2026-11-02"           # 해당 날짜부터 7일
+./gradlew bootRun --args="--aggregate=backfill --from=2026-11-01 --to=2026-11-09"  # 기간 전체 재집계 (생략 시 어제)
+```
+
 ### 5. 프론트엔드 실행
 
 ```bash
