@@ -289,10 +289,12 @@ CREATE TABLE agent_knowledge ( ... );       -- 6.4 참고
 
 ### Phase 1. 단일 턴 Text-to-SQL
 
-- [ ] JWT 검증 의존성, `sdk_key` 주입
-- [ ] `sql/guard.py`, `sql/executor.py` + 단위 테스트(차단 케이스 위주)
-- [ ] 스키마 요약을 프롬프트에 넣고 질문 → SQL 1회 생성 → 실행 → 자연어 답변
-- [ ] `golden_sql.yaml` 초안 20문항, 기준 정확도 측정
+- [x] JWT 검증 의존성, `sdk_key` 주입
+- [x] `sql/guard.py`, `sql/executor.py` + 단위 테스트(차단 케이스 위주)
+- [x] 스키마 요약을 프롬프트에 넣고 질문 → SQL 1회 생성 → 실행 → 자연어 답변
+- [x] `golden_sql.yaml` 초안 20문항, 기준 정확도 측정
+
+- 작업 로그: [Phase 1 단일 턴 Text-to-SQL (K-EXAONE 2.5)](../logs/2026-11-11/02-에이전트_Phase1_단일턴_Text-to-SQL.md)
 
 ### Phase 2. Tool Loop와 실행 예산
 

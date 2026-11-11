@@ -9,7 +9,7 @@ temp/
 # 환경 변수
 .env
 .env.*
-# .env.local, .env.production 등
+!.env.example
 
 # 로그 파일
 npm-debug.log*

@@ -1,0 +1,41 @@
+{
+  "model": "openai/gpt-oss-120b",
+  "reasoning_effort": "high",
+  "label": "recheck",
+  "started_at": "2026-11-11T11:17:31+09:00",
+  "summary": {
+    "total": 1,
+    "execution_accuracy": 100.0,
+    "by_category": {
+      "compare": {
+        "n": 1,
+        "accuracy": 100.0
+      }
+    },
+    "statuses": {
+      "match": 1
+    },
+    "latency_ms_avg": 12875,
+    "latency_ms_p50": 12875,
+    "latency_ms_max": 12875,
+    "prompt_tokens_avg": 1879,
+    "completion_tokens_avg": 3258,
+    "reasoning_tokens_avg": 3048
+  },
+  "items": [
+    {
+      "id": "compare-04",
+      "category": "compare",
+      "question": "최근 7일 기기 유형별 결제 전환율(%)을 알려줘. 결제(is_payment) 이벤트가 있었던 세션의 비율로 계산해줘",
+      "status": "match",
+      "reason": "",
+      "sql": "WITH session_starts AS (\n    SELECT DISTINCT ON (session_id)\n        session_id,\n        device_type,\n        timestamp AS session_start\n    FROM events\n    WHERE timestamp >= (current_date - 7)::timestamp\n      AND timestamp < current_date::timestamp\n    ORDER BY session_id, timestamp\n),\npayment_sessions AS (\n    SELECT DISTINCT session_id\n    FROM events\n    WHERE event_name = 'is_payment'\n      AND timestamp >= (current_date - 7)::timestamp\n      AND timestamp < current_date::timestamp\n)\nSELECT\n    ss.device_type,\n    COUNT(*) AS total_sessions,\n    COUNT(ps.session_id) AS payment_sessions,\n    ROUND(COUNT(ps.session_id)::numeric * 100.0 / NULLIF(COUNT(*), 0), 2) AS conversion_rate_percent\nFROM session_starts ss\nLEFT JOIN payment_sessions ps ON ss.session_id = ps.session_id\nGROUP BY ss.device_type\nORDER BY ss.device_type;",
+      "latency_ms": 12875,
+      "prompt_tokens": 1879,
+      "completion_tokens": 3258,
+      "reasoning_tokens": 3048,
+      "gold_rows": 3,
+      "pred_rows": 3
+    }
+  ]
+}

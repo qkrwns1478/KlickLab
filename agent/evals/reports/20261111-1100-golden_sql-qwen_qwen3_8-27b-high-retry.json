@@ -1,0 +1,116 @@
+{
+  "model": "qwen/qwen3.8-27b",
+  "reasoning_effort": "high",
+  "label": "retry",
+  "started_at": "2026-11-11T11:00:34+09:00",
+  "summary": {
+    "total": 6,
+    "execution_accuracy": 83.3,
+    "by_category": {
+      "compare": {
+        "n": 3,
+        "accuracy": 100.0
+      },
+      "lookup": {
+        "n": 3,
+        "accuracy": 66.7
+      }
+    },
+    "statuses": {
+      "llm_error": 1,
+      "match": 5
+    },
+    "latency_ms_avg": 60543,
+    "latency_ms_p50": 60640,
+    "latency_ms_max": 61702,
+    "prompt_tokens_avg": 1524,
+    "completion_tokens_avg": 638,
+    "reasoning_tokens_avg": 516
+  },
+  "items": [
+    {
+      "id": "lookup-04",
+      "category": "lookup",
+      "question": "지난주 페이지뷰가 가장 많은 페이지 5개는?",
+      "status": "llm_error",
+      "reason": "LLM 응답 오류 429: {\"error\":{\"message\":\"Request too large for model `qwen/qwen3.8-27b` in organization `org_01kg4rt8pafgt9s6wpajpk0052` service tier `on_demand` on output tokens per minute (OTPM): Limit 1",
+      "sql": null,
+      "latency_ms": 0,
+      "prompt_tokens": 0,
+      "completion_tokens": 0,
+      "reasoning_tokens": 0,
+      "gold_rows": 5,
+      "pred_rows": null
+    },
+    {
+      "id": "lookup-07",
+      "category": "lookup",
+      "question": "최근 14일 기기 유형별 세션 수는?",
+      "status": "match",
+      "reason": "",
+      "sql": "SELECT\n    device_type,\n    SUM(sessions) AS total_sessions\nFROM\n    agg_user_session_hourly\nWHERE\n    summary_date >= current_date - 14\n    AND summary_date < current_date\nGROUP BY\n    device_type\nORDER BY\n    total_sessions DESC;",
+      "latency_ms": 61702,
+      "prompt_tokens": 1819,
+      "completion_tokens": 739,
+      "reasoning_tokens": 670,
+      "gold_rows": 3,
+      "pred_rows": 3
+    },
+    {
+      "id": "lookup-12",
+      "category": "lookup",
+      "question": "최근 7일 nov_mega_sale 캠페인의 유입 소스·매체별 세션 수와 전환 수는?",
+      "status": "match",
+      "reason": "",
+      "sql": "SELECT\n    traffic_source,\n    traffic_medium,\n    SUM(sessions) AS sessions,\n    SUM(conversions) AS conversions\nFROM agg_traffic_hourly\nWHERE summary_date >= current_date - 7\n  AND summary_date < current_date\n  AND traffic_campaign = 'nov_mega_sale'\nGROUP BY\n    traffic_source,\n    traffic_medium\nORDER BY\n    sessions DESC,\n    conversions DESC;",
+      "latency_ms": 59250,
+      "prompt_tokens": 1834,
+      "completion_tokens": 388,
+      "reasoning_tokens": 291,
+      "gold_rows": 3,
+      "pred_rows": 3
+    },
+    {
+      "id": "compare-02",
+      "category": "compare",
+      "question": "지난주 세션 100개 이상인 유입 소스·매체 중 전환율(%)이 가장 높은 3개는?",
+      "status": "match",
+      "reason": "",
+      "sql": "SELECT\n    traffic_source,\n    traffic_medium,\n    SUM(sessions) AS session_count,\n    SUM(conversions) AS conversion_count,\n    SUM(conversions) * 100.0 / NULLIF(SUM(sessions), 0) AS conversion_rate_pct\nFROM agg_traffic_hourly\nWHERE summary_date >= date_trunc('week', current_date)::date - 7\n  AND summary_date < date_trunc('week', current_date)::date\nGROUP BY\n    traffic_source,\n    traffic_medium\nHAVING SUM(sessions) >= 100\nORDER BY conversion_rate_pct DESC\nLIMIT 3;",
+      "latency_ms": 61030,
+      "prompt_tokens": 1838,
+      "completion_tokens": 663,
+      "reasoning_tokens": 520,
+      "gold_rows": 3,
+      "pred_rows": 3
+    },
+    {
+      "id": "compare-03",
+      "category": "compare",
+      "question": "최근 28일 동안 요일별(ISO 요일 번호, 월=1) 하루 평균 세션 수는?",
+      "status": "match",
+      "reason": "",
+      "sql": "SELECT\n    EXTRACT(ISODOW FROM summary_date)::int AS iso_weekday,\n    COUNT(DISTINCT summary_date) AS days,\n    SUM(sessions) AS total_sessions,\n    SUM(sessions)::numeric / NULLIF(COUNT(DISTINCT summary_date), 0) AS avg_sessions_per_day\nFROM agg_user_session_daily\nWHERE summary_date >= current_date - 28\n  AND summary_date < current_date\nGROUP BY 1\nORDER BY 1;",
+      "latency_ms": 60094,
+      "prompt_tokens": 1832,
+      "completion_tokens": 735,
+      "reasoning_tokens": 625,
+      "gold_rows": 7,
+      "pred_rows": 7
+    },
+    {
+      "id": "compare-06",
+      "category": "compare",
+      "question": "지난주 대비 이번 주 이벤트 종류별 발생 건수 변화를 보여줘",
+      "status": "match",
+      "reason": "",
+      "sql": "WITH this_week AS (\n    SELECT\n        event_name,\n        SUM(event_count) AS event_count\n    FROM agg_event_daily\n    WHERE summary_date >= date_trunc('week', current_date)::date\n    GROUP BY event_name\n),\nlast_week AS (\n    SELECT\n        event_name,\n        SUM(event_count) AS event_count\n    FROM agg_event_daily\n    WHERE summary_date >= date_trunc('week', current_date)::date - 7\n      AND summary_date <  date_trunc('week', current_date)::date\n    GROUP BY event_name\n)\nSELECT\n    COALESCE(t.event_name, l.event_name) AS event_name,\n    COALESCE(l.event_count, 0) AS last_week_event_count,\n    COALESCE(t.event_count, 0) AS this_week_event_count,\n    COALESCE(t.event_count, 0) - COALESCE(l.event_count, 0) AS event_count_change,\n    CASE\n        WHEN COALESCE(l.event_count, 0) = 0 THEN NULL\n        ELSE (COALESCE(t.event_count, 0) - l.event_count) * 100.0 / l.event_count\n    END AS change_rate_pct\nFROM this_week t\nFULL OUTER JOIN last_week l\n    ON t.event_name = l.event_name\nORDER BY\n    event_count_change DESC,\n    event_name;",
+      "latency_ms": 60640,
+      "prompt_tokens": 1821,
+      "completion_tokens": 1303,
+      "reasoning_tokens": 993,
+      "gold_rows": 6,
+      "pred_rows": 6
+    }
+  ]
+}
