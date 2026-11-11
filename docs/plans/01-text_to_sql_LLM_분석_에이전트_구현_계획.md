@@ -175,6 +175,7 @@ return final_answer or forced_summary()
 2. **DB 권한**
    - 전용 롤 `klicklab_agent_ro`: 화이트리스트 테이블 `SELECT`만 부여 (실행 로그·지식 베이스 쓰기는 별도 롤 `klicklab_agent`가 담당)
    - RLS 정책: `sdk_key = current_setting('app.sdk_key')` — 실행기는 트랜잭션마다 `SET LOCAL app.sdk_key = <JWT의 sdk_key>` 설정. LLM이 `sdk_key` 조건을 빼먹거나 다른 값을 넣어도 다른 테넌트 데이터는 보이지 않는다.
+     - (Phase 4 변경) `app.sdk_key`는 쿼리 안의 `set_config`로 바꿀 수 있어, V5에서 읽기 전용 롤이 모르는 테넌트 토큰(`app.tenant_token`) 기준으로 바꿨다.
 3. **실행 제한**
    - `SET LOCAL statement_timeout = '5s'`, `default_transaction_read_only = on`
    - 실행 전 `EXPLAIN (FORMAT JSON)`으로 예상 비용 확인, 임계값 초과 시 집계 테이블 사용을 권하는 메시지로 반려
@@ -315,9 +316,12 @@ CREATE TABLE agent_knowledge ( ... );       -- 6.4 참고
 
 ### Phase 4. 평가 자동화
 
-- [ ] 평가셋 확장 (golden 40+, diagnose 10+, 안전성 15)
-- [ ] `run_eval.py`, LLM-as-judge, 리포트 생성
-- [ ] GitHub Actions에서 PR마다 축소 평가셋 회귀 실행
+- [x] 평가셋 확장 (golden 44, diagnose 12, 안전성 21)
+- [x] `run_eval.py`, LLM-as-judge, 리포트 생성 (Tool Loop·judge 실측은 LLM 한도로 미실행)
+- [x] GitHub Actions에서 PR마다 축소 평가셋 회귀 실행 (워크플로 작성, GitHub 실행은 미확인)
+- 안전성 평가에서 찾은 RLS 우회(guard 우회 시 `set_config`로 테넌트 전환)를 V5 테넌트 토큰으로 수정
+
+- 작업 로그: [Phase 4 평가 자동화 (Groq 미사용, K-EXAONE 2.5 일부 실측)](../logs/2026-11-11/05-에이전트_Phase4_평가_자동화.md)
 
 ### Phase 5. 백오피스 UI
 

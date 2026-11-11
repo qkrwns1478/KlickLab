@@ -1,12 +1,15 @@
-# Text-to-SQL 정답셋 (Phase 1 초안 20문항)
+# Text-to-SQL 정답셋 (Phase 1 초안 20문항 + Phase 4 확장 24문항)
 #  * 채점은 SQL 문자열이 아니라 실행 결과로 한다 (evals/matching.py)
 #  * 시드는 실행 날짜 기준 상대 날짜로 만들어지므로 정답 SQL 도 current_date 기준으로 쓴다
 #  * order_matters: 결과 행 순서까지 맞아야 하는 문항 (순위·추이)
 #  * 기간 표현(최근 N일, 지난주 등)은 시스템 프롬프트의 정의를 따른다
 #  * knowledge: 이 문항을 풀 때 검색되어야 하는 지표·용어 문서 (검색 평가용. 테이블은 정답 SQL 에서 뽑는다)
+#  * beyond_summary: 프롬프트의 스키마 요약(SCHEMA_SUMMARY)에 정의가 없어 지식 베이스가 있어야 풀기 쉬운 문항
+#  * ci: PR 회귀 평가(축소 평가셋)에 포함
 
 - id: lookup-01
   category: lookup
+  ci: true
   knowledge: [metric/unique_visitors, glossary/period_day]
   question: 어제 순 방문자 수는?
   sql: |
@@ -38,6 +41,7 @@
 
 - id: lookup-04
   category: lookup
+  ci: true
   knowledge: [metric/page_views, glossary/period_week]
   question: 지난주 페이지뷰가 가장 많은 페이지 5개는?
   order_matters: true
@@ -63,6 +67,7 @@
 
 - id: lookup-06
   category: lookup
+  ci: true
   knowledge: [metric/bounce_rate, glossary/period_week, glossary/traffic_channels]
   question: 지난주 유입 소스(traffic_source)별 이탈률(%)은?
   sql: |
@@ -129,6 +134,7 @@
 
 - id: lookup-12
   category: lookup
+  ci: true
   knowledge: [metric/conversions, glossary/period_recent_days, glossary/campaigns]
   question: 최근 7일 nov_mega_sale 캠페인의 유입 소스·매체별 세션 수와 전환 수는?
   sql: |
@@ -156,6 +162,7 @@
 
 - id: lookup-14
   category: lookup
+  ci: true
   knowledge: [glossary/period_day, glossary/pages]
   question: 15일 전 기기 유형별로 /checkout/success 페이지를 본 세션 수는?
   sql: |
@@ -167,6 +174,7 @@
 
 - id: compare-01
   category: compare
+  ci: true
   knowledge: [metric/sessions, glossary/period_week]
   question: 지난주 대비 이번 주 유입 소스(traffic_source)별 세션 수를 비교해줘
   sql: |
@@ -179,6 +187,7 @@
 
 - id: compare-02
   category: compare
+  ci: true
   knowledge: [metric/conversion_rate, glossary/period_week]
   question: 지난주 세션 100개 이상인 유입 소스·매체 중 전환율(%)이 가장 높은 3개는?
   order_matters: true
@@ -211,6 +220,7 @@
 
 - id: compare-04
   category: compare
+  ci: true
   knowledge: [metric/payment_session_rate, glossary/period_recent_days]
   question: 최근 7일 기기 유형별 결제 전환율(%)을 알려줘. 결제(is_payment) 이벤트가 있었던 세션의 비율로 계산해줘
   sql: |
@@ -246,3 +256,299 @@
     FROM agg_event_daily
     WHERE summary_date >= date_trunc('week', current_date)::date - 7
     GROUP BY event_name
+
+# ---------------------------------------------------------------------
+# Phase 4 확장
+# ---------------------------------------------------------------------
+
+- id: lookup-15
+  category: lookup
+  knowledge: [metric/signups, glossary/period_day]
+  question: 어제 회원가입 건수는?
+  sql: |
+    SELECT sum(event_count) AS signups
+    FROM agg_event_daily
+    WHERE event_name = 'is_signup' AND summary_date = current_date - 1
+
+- id: lookup-16
+  category: lookup
+  knowledge: [metric/clicks, glossary/period_recent_days]
+  question: 최근 7일 클릭이 가장 많이 발생한 페이지 5개는?
+  order_matters: true
+  sql: |
+    SELECT page_path, sum(event_count) AS clicks
+    FROM agg_event_page_daily
+    WHERE event_name = 'auto_click'
+      AND summary_date >= current_date - 7 AND summary_date < current_date
+    GROUP BY page_path
+    ORDER BY clicks DESC
+    LIMIT 5
+
+- id: lookup-17
+  category: lookup
+  knowledge: [metric/revenue, glossary/period_week]
+  question: 지난주 매출 합계(원)는?
+  sql: |
+    SELECT sum(conversion_value_sum) AS revenue
+    FROM agg_traffic_hourly
+    WHERE summary_date >= date_trunc('week', current_date)::date - 7
+      AND summary_date < date_trunc('week', current_date)::date
+
+- id: lookup-18
+  category: lookup
+  beyond_summary: true
+  knowledge: [metric/sessions, glossary/period_recent_days, glossary/devices]
+  question: 최근 30일 세션이 가장 많은 도시 5곳은?
+  order_matters: true
+  sql: |
+    SELECT city, sum(sessions) AS sessions
+    FROM agg_user_session_hourly
+    WHERE summary_date >= current_date - 30 AND summary_date < current_date
+    GROUP BY city
+    ORDER BY sessions DESC
+    LIMIT 5
+
+- id: lookup-19
+  category: lookup
+  beyond_summary: true
+  knowledge: [metric/sessions, glossary/period_day, glossary/devices]
+  question: 어제 브라우저별 세션 수는?
+  sql: |
+    SELECT browser, sum(sessions) AS sessions
+    FROM agg_user_session_hourly
+    WHERE summary_date = current_date - 1
+    GROUP BY browser
+
+- id: lookup-20
+  category: lookup
+  knowledge: [metric/avg_time_on_page, glossary/period_recent_days, glossary/pages]
+  question: 최근 7일 /products 페이지의 평균 체류 시간(초)은?
+  sql: |
+    SELECT sum(time_on_page_sum) / NULLIF(sum(page_views), 0) AS avg_time_on_page_seconds
+    FROM agg_page_daily
+    WHERE page_path = '/products'
+      AND summary_date >= current_date - 7 AND summary_date < current_date
+
+- id: lookup-21
+  category: lookup
+  knowledge: [metric/exit_rate, glossary/period_recent_days]
+  question: 최근 7일 페이지뷰 200회 이상인 페이지 중 종료율(%)이 가장 높은 3개는?
+  order_matters: true
+  sql: |
+    SELECT page_path, sum(exits) * 100.0 / NULLIF(sum(page_views), 0) AS exit_rate
+    FROM agg_page_daily
+    WHERE summary_date >= current_date - 7 AND summary_date < current_date
+    GROUP BY page_path
+    HAVING sum(page_views) >= 200
+    ORDER BY exit_rate DESC
+    LIMIT 3
+
+- id: lookup-22
+  category: lookup
+  ci: true
+  beyond_summary: true
+  knowledge: [metric/new_returning_visitors, glossary/period_week]
+  question: 지난주 신규 방문자 수와 재방문자 수는?
+  sql: |
+    SELECT sum(new_visitors) AS new_visitors, sum(existing_visitors) AS returning_visitors
+    FROM daily_metrics
+    WHERE date >= date_trunc('week', current_date)::date - 7
+      AND date < date_trunc('week', current_date)::date
+
+- id: lookup-23
+  category: lookup
+  knowledge: [metric/revenue, glossary/period_month]
+  question: 이번 달 일별 매출 추이를 보여줘
+  order_matters: true
+  sql: |
+    SELECT summary_date, sum(conversion_value_sum) AS revenue
+    FROM agg_traffic_hourly
+    WHERE summary_date >= date_trunc('month', current_date)::date
+    GROUP BY summary_date
+    ORDER BY summary_date
+
+- id: lookup-24
+  category: lookup
+  beyond_summary: true
+  knowledge: [metric/sessions, glossary/period_recent_days, glossary/devices]
+  question: 최근 7일 운영체제(OS)별 세션 수는?
+  sql: |
+    SELECT device_os, sum(sessions) AS sessions
+    FROM agg_user_session_hourly
+    WHERE summary_date >= current_date - 7 AND summary_date < current_date
+    GROUP BY device_os
+
+- id: lookup-25
+  category: lookup
+  knowledge: [glossary/event_names, glossary/period_day]
+  question: 어제 장바구니에 상품을 담은 방문자 수는?
+  sql: |
+    SELECT unique_users AS cart_users
+    FROM agg_event_daily
+    WHERE event_name = 'add_to_cart' AND summary_date = current_date - 1
+
+- id: lookup-26
+  category: lookup
+  knowledge: [metric/sessions, glossary/traffic_channels, glossary/period_recent_days]
+  question: 최근 14일 카카오(kakao) 유입의 매체별 세션 수는?
+  sql: |
+    SELECT traffic_medium, sum(sessions) AS sessions
+    FROM agg_traffic_hourly
+    WHERE traffic_source = 'kakao'
+      AND summary_date >= current_date - 14 AND summary_date < current_date
+    GROUP BY traffic_medium
+
+- id: lookup-27
+  category: lookup
+  knowledge: [metric/page_transition_rate, glossary/period_week, glossary/pages]
+  question: 지난주 /checkout 에서 /checkout/success 로 이동한 세션 수는?
+  sql: |
+    SELECT sum(sessions) AS sessions
+    FROM agg_funnel_links_daily
+    WHERE source = '/checkout' AND target = '/checkout/success'
+      AND summary_date >= date_trunc('week', current_date)::date - 7
+      AND summary_date < date_trunc('week', current_date)::date
+
+- id: lookup-28
+  category: lookup
+  knowledge: [metric/payments, glossary/devices, glossary/period_day]
+  question: 15일 전 모바일 기기의 결제 완료 건수는?
+  sql: |
+    SELECT count(*) AS payments
+    FROM events
+    WHERE event_name = 'is_payment' AND device_type = 'mobile'
+      AND timestamp >= current_date - 15 AND timestamp < current_date - 14
+
+- id: lookup-29
+  category: lookup
+  knowledge: [glossary/event_names, glossary/period_recent_days]
+  question: 최근 7일 일별 문의 접수 건수 추이는?
+  order_matters: true
+  sql: |
+    SELECT summary_date, sum(event_count) AS contacts
+    FROM agg_event_daily
+    WHERE event_name = 'contact_submit'
+      AND summary_date >= current_date - 7 AND summary_date < current_date
+    GROUP BY summary_date
+    ORDER BY summary_date
+
+- id: compare-07
+  category: compare
+  knowledge: [metric/sessions, glossary/period_week, glossary/devices]
+  question: 지난주 대비 이번 주 기기 유형별 세션 수를 비교해줘
+  sql: |
+    SELECT device_type,
+           sum(sessions) FILTER (WHERE summary_date < date_trunc('week', current_date)::date) AS last_week,
+           sum(sessions) FILTER (WHERE summary_date >= date_trunc('week', current_date)::date) AS this_week
+    FROM agg_user_session_hourly
+    WHERE summary_date >= date_trunc('week', current_date)::date - 7
+    GROUP BY device_type
+
+- id: compare-08
+  category: compare
+  knowledge: [metric/sessions, glossary/campaigns, glossary/period_recent_days]
+  question: 최근 7일과 그 전 7일의 nov_mega_sale 캠페인 세션 수를 비교해줘
+  sql: |
+    SELECT sum(sessions) FILTER (WHERE summary_date >= current_date - 7) AS recent_7d,
+           sum(sessions) FILTER (WHERE summary_date < current_date - 7) AS previous_7d
+    FROM agg_traffic_hourly
+    WHERE traffic_campaign = 'nov_mega_sale'
+      AND summary_date >= current_date - 14 AND summary_date < current_date
+
+- id: compare-09
+  category: compare
+  knowledge: [metric/sessions, glossary/weekday, glossary/period_recent_days]
+  question: 최근 28일 주말(토·일)과 평일의 하루 평균 세션 수를 비교해줘
+  sql: |
+    SELECT avg(sessions) FILTER (WHERE extract(isodow FROM summary_date) >= 6) AS weekend_avg,
+           avg(sessions) FILTER (WHERE extract(isodow FROM summary_date) < 6) AS weekday_avg
+    FROM (
+        SELECT summary_date, sum(sessions) AS sessions
+        FROM agg_user_session_daily
+        WHERE summary_date >= current_date - 28 AND summary_date < current_date
+        GROUP BY summary_date
+    ) d
+
+- id: compare-10
+  category: compare
+  knowledge: [metric/sessions, glossary/weekday, glossary/traffic_channels, glossary/period_recent_days]
+  question: 최근 28일 요일별(ISO 요일 번호, 월=1) 이메일(email) 매체 유입 세션 수는?
+  order_matters: true
+  sql: |
+    SELECT extract(isodow FROM summary_date) AS weekday, sum(sessions) AS sessions
+    FROM agg_traffic_hourly
+    WHERE traffic_medium = 'email'
+      AND summary_date >= current_date - 28 AND summary_date < current_date
+    GROUP BY weekday
+    ORDER BY weekday
+
+- id: compare-11
+  category: compare
+  ci: true
+  knowledge: [metric/payments, glossary/devices, glossary/period_day]
+  question: 15일 전과 14일 전의 기기 유형별 결제 완료 건수를 비교해줘
+  sql: |
+    SELECT device_type,
+           count(*) FILTER (WHERE timestamp < current_date - 14) AS day_15_ago,
+           count(*) FILTER (WHERE timestamp >= current_date - 14) AS day_14_ago
+    FROM events
+    WHERE event_name = 'is_payment'
+      AND timestamp >= current_date - 15 AND timestamp < current_date - 13
+    GROUP BY device_type
+
+- id: compare-12
+  category: compare
+  knowledge: [metric/page_views, glossary/period_month]
+  question: 지난달과 이번 달의 일평균 페이지뷰를 비교해줘
+  sql: |
+    SELECT avg(page_views) FILTER (WHERE summary_date < date_trunc('month', current_date)::date) AS last_month,
+           avg(page_views) FILTER (WHERE summary_date >= date_trunc('month', current_date)::date) AS this_month
+    FROM (
+        SELECT summary_date, sum(page_views) AS page_views
+        FROM agg_page_daily
+        WHERE summary_date >= (date_trunc('month', current_date) - interval '1 month')::date
+        GROUP BY summary_date
+    ) d
+
+- id: compare-13
+  category: compare
+  knowledge: [metric/conversions, glossary/period_recent_days, glossary/traffic_channels]
+  question: 최근 7일과 그 전 7일의 유입 소스(traffic_source)별 전환 수를 비교해줘
+  sql: |
+    SELECT traffic_source,
+           sum(conversions) FILTER (WHERE summary_date >= current_date - 7) AS recent_7d,
+           sum(conversions) FILTER (WHERE summary_date < current_date - 7) AS previous_7d
+    FROM agg_traffic_hourly
+    WHERE summary_date >= current_date - 14 AND summary_date < current_date
+    GROUP BY traffic_source
+
+- id: compare-14
+  category: compare
+  knowledge: [metric/sessions, glossary/devices, glossary/period_recent_days]
+  question: 최근 14일 일별 모바일과 데스크톱 세션 수를 날짜별 한 행에 나란히 보여줘
+  order_matters: true
+  sql: |
+    SELECT summary_date,
+           sum(sessions) FILTER (WHERE device_type = 'mobile') AS mobile,
+           sum(sessions) FILTER (WHERE device_type = 'desktop') AS desktop
+    FROM agg_user_session_hourly
+    WHERE summary_date >= current_date - 14 AND summary_date < current_date
+    GROUP BY summary_date
+    ORDER BY summary_date
+
+- id: compare-15
+  category: compare
+  knowledge: [metric/payment_session_rate, glossary/period_week, glossary/traffic_channels]
+  question: 지난주 세션 200개 이상인 유입 소스(traffic_source) 중 결제한 세션 비율(%)이 가장 높은 3개는?
+  order_matters: true
+  sql: |
+    SELECT traffic_source,
+           count(DISTINCT session_id) FILTER (WHERE event_name = 'is_payment') * 100.0
+               / NULLIF(count(DISTINCT session_id), 0) AS payment_session_rate
+    FROM events
+    WHERE timestamp >= date_trunc('week', current_date)::date - 7
+      AND timestamp < date_trunc('week', current_date)::date
+    GROUP BY traffic_source
+    HAVING count(DISTINCT session_id) >= 200
+    ORDER BY payment_session_rate DESC
+    LIMIT 3

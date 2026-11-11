@@ -48,6 +48,7 @@ def get_run_store(request: Request, settings: Settings = Depends(get_settings)) 
 def build_agent(settings: Settings, store: PostgresRunStore) -> AgentLoop:
     executor = build_executor(
         settings.dsn(read_only=True),
+        token_dsn=settings.dsn(read_only=False),
         statement_timeout_ms=settings.sql_statement_timeout_ms,
         result_rows=settings.sql_result_rows,
         max_plan_cost=settings.sql_max_plan_cost,

@@ -58,3 +58,4 @@ extend-immutable-calls = ["fastapi.Depends"]
 # 프롬프트 본문은 줄바꿈이 모델 입력을 바꾸므로 길이 제한에서 제외한다
 "app/agent/prompts.py" = ["E501"]
 "app/knowledge/context.py" = ["E501"]
+"evals/judges.py" = ["E501"]

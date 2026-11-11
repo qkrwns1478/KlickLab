@@ -72,6 +72,7 @@ class AskResponse(_Camel):
 def build_text_to_sql(settings: Settings) -> TextToSQL:
     executor = build_executor(
         settings.dsn(read_only=True),
+        token_dsn=settings.dsn(read_only=False),
         statement_timeout_ms=settings.sql_statement_timeout_ms,
         result_rows=settings.sql_result_rows,
         max_plan_cost=settings.sql_max_plan_cost,

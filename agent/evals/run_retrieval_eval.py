@@ -145,6 +145,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--quota", help="기본값: KNOWLEDGE_CONTEXT_QUOTA")
     parser.add_argument("--modes", nargs="*", default=list(MODES), choices=MODES)
     parser.add_argument("--label", default="")
+    parser.add_argument(
+        "--min-recall", type=float, help="어느 방식이든 재현율(%%)이 이보다 낮으면 종료 코드 1"
+    )
     parser.add_argument("--out-dir", type=Path, default=ROOT / "reports")
     args = parser.parse_args(argv)
 
@@ -162,6 +165,10 @@ def main(argv: list[str] | None = None) -> int:
         s = r.summary()
         print(f"{r.mode:<8} 재현율 {s['recall']}%  전부 찾음 {s['all_found']}/{len(r.items)}  {s}")
     print(write_report(results, quota_spec, args.out_dir, args.label))
+    low = [r.mode for r in results if args.min_recall and r.summary()["recall"] < args.min_recall]
+    if low:
+        print(f"재현율 기준 {args.min_recall}% 미달: {', '.join(low)}", file=sys.stderr)
+        return 1
     return 0
 
 

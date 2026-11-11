@@ -1,0 +1,232 @@
+# 원인 분석(diagnose) 평가셋
+#  * 정답은 시드(backend/seed/clickstream_seed.sql)에 심어 둔 패턴이다.
+#  * facts: 답변(summary + findings)에 들어 있어야 하는 사실
+#      keywords   : 그룹 목록. 각 그룹에서 하나 이상이 답변에 있어야 사실을 찾은 것으로 본다 (대소문자·공백 무시)
+#                   {이름} 은 values_sql 결과 컬럼 값으로 바꾼다 (실행 날짜마다 달라지는 날짜 등)
+#      check_sql  : 이 사실이 지금 DB 에서 성립하는지 확인하는 SQL (ok 컬럼 하나). 시드가 오래돼 패턴이
+#                   질문 기간을 벗어나면 평가 전에 실패로 알려 준다 (evals check)
+#  * required: 통과에 필요한 최소 사실 수
+#  * 질문에는 "15일 전" 같은 실행일 기준 표현을 되도록 쓰지 않는다 (시드 날짜와 실행 날짜가 다를 수 있다)
+
+- id: diag-01
+  ci: true
+  question: 지난주 대비 이번 주 참여도가 떨어진 페이지를 찾고, 원인을 분석해 줘
+  required: 1
+  facts:
+    - id: campaign_ended
+      description: nov_mega_sale 캠페인 유입이 지난주에 몰렸고 이번 주에는 줄었다
+      keywords: [[nov_mega_sale, 메가세일, 캠페인]]
+      check_sql: |
+        SELECT sum(sessions) FILTER (WHERE summary_date < date_trunc('week', current_date)::date) / 7.0
+                 > 2 * sum(sessions) FILTER (WHERE summary_date >= date_trunc('week', current_date)::date)
+                       / greatest(current_date - date_trunc('week', current_date)::date + 1, 1) AS ok
+        FROM agg_traffic_hourly
+        WHERE traffic_campaign = 'nov_mega_sale'
+          AND summary_date >= date_trunc('week', current_date)::date - 7
+
+- id: diag-02
+  ci: true
+  question: 최근 한 달 동안 모바일 결제가 갑자기 멈춘 날이 있었어? 있었다면 언제, 결제 흐름의 어느 단계에서 끊겼는지 알려줘
+  required: 2
+  values_sql: |
+    SELECT to_char(d, 'YYYY-MM-DD') AS iso, to_char(d, 'FMMM"월" FMDD"일"') AS kr,
+           to_char(d, 'MM-DD') AS md, to_char(d, 'FMMM/FMDD') AS slash
+    FROM (
+        SELECT timestamp::date AS d
+        FROM events
+        WHERE timestamp >= current_date - 30 AND timestamp < current_date AND device_type = 'mobile'
+        GROUP BY 1
+        HAVING count(*) FILTER (WHERE event_name = 'page_view' AND page_path = '/checkout') > 0
+           AND count(*) FILTER (WHERE event_name = 'is_payment') = 0
+    ) x
+  facts:
+    - id: outage_date
+      description: 모바일 결제가 0건인 날짜
+      keywords: [["{iso}", "{kr}", "{md}", "{slash}"]]
+      check_sql: |
+        SELECT count(*) = 1 AS ok
+        FROM (
+            SELECT timestamp::date
+            FROM events
+            WHERE timestamp >= current_date - 30 AND timestamp < current_date AND device_type = 'mobile'
+            GROUP BY 1
+            HAVING count(*) FILTER (WHERE event_name = 'page_view' AND page_path = '/checkout') > 0
+               AND count(*) FILTER (WHERE event_name = 'is_payment') = 0
+        ) x
+    - id: outage_step
+      description: /checkout 까지는 왔지만 /checkout/success(결제 완료)로 넘어가지 못했다
+      keywords: [[모바일, mobile], [checkout/success, 결제완료, 결제성공, 주문완료]]
+
+- id: diag-03
+  question: 화요일마다 방문자가 늘어나는 이유는 뭐야?
+  required: 1
+  facts:
+    - id: newsletter
+      description: 화요일 뉴스레터(email) 발송으로 email 유입이 급증한다
+      keywords: [[newsletter, 뉴스레터, email, 이메일]]
+      check_sql: |
+        SELECT avg(s) FILTER (WHERE dow = 2) > 3 * avg(s) FILTER (WHERE dow <> 2) AS ok
+        FROM (
+            SELECT summary_date, extract(isodow FROM summary_date) AS dow, sum(sessions) AS s
+            FROM agg_traffic_hourly
+            WHERE traffic_medium = 'email' AND summary_date >= current_date - 28 AND summary_date < current_date
+            GROUP BY summary_date
+        ) d
+
+- id: diag-04
+  question: 최근 일주일 사이 신규 방문자가 크게 늘어난 원인을 찾아줘
+  required: 1
+  facts:
+    - id: campaign
+      description: nov_mega_sale 캠페인 유입
+      keywords: [[nov_mega_sale, 메가세일]]
+      check_sql: |
+        SELECT sum(sessions) FILTER (WHERE summary_date >= current_date - 7)
+                 > 2 * sum(sessions) FILTER (WHERE summary_date < current_date - 7) AS ok
+        FROM agg_traffic_hourly
+        WHERE traffic_campaign = 'nov_mega_sale' AND summary_date >= current_date - 14 AND summary_date < current_date
+    - id: campaign_sources
+      description: 캠페인 채널은 naver cpc / instagram / kakao
+      keywords: [[naver, 네이버], [instagram, 인스타그램], [kakao, 카카오]]
+
+- id: diag-05
+  question: 이탈률이 특히 높은 유입 채널은 어디고, 다른 채널과 얼마나 차이 나?
+  required: 1
+  facts:
+    - id: social_video_bounce
+      description: instagram·youtube 유입의 이탈률이 높다
+      keywords: [[instagram, 인스타그램], [youtube, 유튜브]]
+      check_sql: |
+        SELECT bool_and(traffic_source IN ('instagram', 'youtube')) AS ok
+        FROM (
+            SELECT traffic_source
+            FROM agg_traffic_hourly
+            WHERE summary_date >= current_date - 28 AND summary_date < current_date
+            GROUP BY traffic_source
+            HAVING sum(sessions) >= 100
+            ORDER BY sum(bounced_sessions)::float / sum(sessions) DESC
+            LIMIT 2
+        ) t
+
+- id: diag-06
+  question: 구매 의도가 높은 유입 채널은 어디야? 근거와 함께 알려줘
+  required: 1
+  facts:
+    - id: email
+      description: email(newsletter) 유입의 전환율이 높다
+      keywords: [[newsletter, 뉴스레터, email, 이메일]]
+      check_sql: |
+        SELECT bool_or(traffic_medium = 'email') AS ok
+        FROM (
+            SELECT traffic_medium
+            FROM agg_traffic_hourly
+            WHERE summary_date >= current_date - 28 AND summary_date < current_date
+            GROUP BY traffic_medium
+            HAVING sum(sessions) >= 100
+            ORDER BY sum(conversions)::float / sum(sessions) DESC
+            LIMIT 2
+        ) t
+    - id: naver_cpc
+      description: naver cpc 유입의 전환율이 높다
+      keywords: [[naver, 네이버], [cpc, 검색광고, 유료]]
+
+- id: diag-07
+  question: 하루 중 트래픽이 몰리는 시간대는 언제야? 기기별로 차이가 있는지도 봐줘
+  required: 2
+  facts:
+    - id: lunch_peak
+      description: 점심(12시) 피크
+      keywords: [[12시, 점심, 정오]]
+      check_sql: |
+        SELECT sum(sessions) FILTER (WHERE summary_hour = 12) > sum(sessions) FILTER (WHERE summary_hour = 10)
+           AND sum(sessions) FILTER (WHERE summary_hour = 12) > sum(sessions) FILTER (WHERE summary_hour = 15) AS ok
+        FROM agg_traffic_hourly
+        WHERE summary_date >= current_date - 28 AND summary_date < current_date
+    - id: evening_peak
+      description: 저녁(20~22시) 피크
+      keywords: [[20시, 21시, 22시, 저녁, 밤]]
+    - id: desktop_work_hours
+      description: 데스크톱은 업무 시간 비중이 높다
+      keywords: [[데스크톱, desktop], [업무, 근무, 오전, 낮, 주간]]
+
+- id: diag-08
+  question: 주말과 평일의 방문 패턴은 어떻게 달라?
+  required: 1
+  facts:
+    - id: weekend_up
+      description: 주말 방문이 평일보다 많다
+      keywords: [[주말, 토요일, 일요일]]
+      check_sql: |
+        SELECT avg(s) FILTER (WHERE extract(isodow FROM summary_date) >= 6)
+                 > 1.1 * avg(s) FILTER (WHERE extract(isodow FROM summary_date) < 6) AS ok
+        FROM (
+            SELECT summary_date, sum(sessions) AS s
+            FROM agg_user_session_daily
+            WHERE summary_date >= current_date - 28 AND summary_date < current_date
+            GROUP BY summary_date
+        ) d
+
+- id: diag-09
+  question: nov_mega_sale 캠페인의 성과를 유입과 전환 관점에서 평가해줘
+  required: 1
+  facts:
+    - id: campaign_sources
+      description: 캠페인 유입은 naver cpc / instagram / kakao
+      keywords: [[naver, 네이버], [instagram, 인스타그램], [kakao, 카카오]]
+      check_sql: |
+        SELECT count(DISTINCT traffic_source) = 3 AS ok
+        FROM agg_traffic_hourly
+        WHERE traffic_campaign = 'nov_mega_sale' AND traffic_source IN ('naver', 'instagram', 'kakao')
+          AND summary_date >= current_date - 14
+    - id: new_visitors
+      description: 신규 방문자 유입이 컸다
+      keywords: [[신규, 새로운방문자, 첫방문]]
+
+- id: diag-10
+  question: 최근 4주 기준으로 기기 유형별 결제 전환율이 다른 이유가 있을까?
+  required: 1
+  facts:
+    - id: mobile_outage
+      description: 모바일 결제 장애가 있던 날 모바일 결제가 0건이라 모바일 전환율이 낮아졌다
+      keywords: [[모바일, mobile], [장애, 오류, 0건, 멈, 중단, 급감, 없었]]
+      check_sql: |
+        SELECT count(*) >= 1 AS ok
+        FROM (
+            SELECT timestamp::date
+            FROM events
+            WHERE timestamp >= current_date - 28 AND timestamp < current_date AND device_type = 'mobile'
+            GROUP BY 1
+            HAVING count(*) FILTER (WHERE event_name = 'page_view' AND page_path = '/checkout') > 0
+               AND count(*) FILTER (WHERE event_name = 'is_payment') = 0
+        ) x
+
+- id: diag-11
+  question: 로그인 회원과 비회원은 방문 행동이 어떻게 달라?
+  required: 1
+  facts:
+    - id: members_return
+      description: 로그인 회원은 방문자당 세션 수(재방문)가 많다
+      keywords: [[회원, 로그인], [재방문, 방문빈도, 세션수, 자주, 여러번, 세션이많]]
+      check_sql: |
+        SELECT count(DISTINCT session_id) FILTER (WHERE user_id IS NOT NULL)::float
+                 / NULLIF(count(DISTINCT client_id) FILTER (WHERE user_id IS NOT NULL), 0)
+             > 1.5 * count(DISTINCT session_id) FILTER (WHERE user_id IS NULL)::float
+                 / NULLIF(count(DISTINCT client_id) FILTER (WHERE user_id IS NULL), 0) AS ok
+        FROM events
+        WHERE timestamp >= current_date - 28 AND timestamp < current_date
+
+- id: diag-12
+  question: 최근 4주 동안 방문자가 늘고 있어? 추세와 이유를 알려줘
+  required: 1
+  facts:
+    - id: growth
+      description: 기간 후반으로 갈수록 방문자가 늘었다
+      keywords: [[증가, 늘, 성장, 상승]]
+      check_sql: |
+        SELECT count(*) FILTER (WHERE summary_date >= current_date - 7)
+                 > count(*) FILTER (WHERE summary_date < current_date - 21) AS ok
+        FROM agg_daily_users
+        WHERE summary_date >= current_date - 28 AND summary_date < current_date
+    - id: campaign
+      description: 최근 캠페인 유입이 증가에 기여했다
+      keywords: [[nov_mega_sale, 메가세일, 캠페인]]

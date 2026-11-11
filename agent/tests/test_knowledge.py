@@ -206,7 +206,7 @@ def executor():
         psycopg.connect(dsn, connect_timeout=2).close()
     except psycopg.Error:
         pytest.skip("읽기 전용 DB 연결 불가")
-    ex = build_executor(dsn, statement_timeout_ms=5000)
+    ex = build_executor(dsn, token_dsn=Settings().dsn(read_only=False), statement_timeout_ms=5000)
     yield ex
     ex.close()
 
