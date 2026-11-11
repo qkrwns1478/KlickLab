@@ -1,0 +1,534 @@
+"""Phase 2 Tool Loop: 난이도 분류 → 예산 안에서 도구 호출 반복 → 근거가 연결된 final_answer.
+
+run() 은 실행 과정을 이벤트로 내보내는 async generator 다 (SSE 로 그대로 전달된다).
+    started → classified → (tool_call → tool_result)* → answer → done
+    오류 시: error → done
+"""
+
+import asyncio
+import json
+import logging
+import time
+import uuid
+from collections.abc import AsyncIterator, Callable
+from dataclasses import dataclass, field
+from datetime import date
+from typing import Any
+
+from app.agent import prompts
+from app.agent.budget import Budget, Difficulty
+from app.agent.router import Router
+from app.agent.store import RunStore, RunTotals
+from app.agent.text_to_sql import today_kst
+from app.agent.tools import (
+    RunState,
+    Step,
+    ToolOutcome,
+    describe_table,
+    final_answer,
+    parse_arguments,
+    request_more_budget,
+    run_sql,
+)
+from app.agent.tools.final_answer import FinalAnswer, SubmitFinalAnswer
+from app.llm import ChatResult, LLMClient, LLMError, ToolCall, Usage
+from app.sql.executor import SQLExecutor
+
+log = logging.getLogger(__name__)
+
+MAX_LLM_CALLS = 30  # 예산과 별개의 안전 상한
+# 공급자가 도구 호출 형식 오류(tool_use_failed)를 돌려준 경우 연속 재시도 횟수.
+# Groq gpt-oss 는 도구 없이 끝내거나 없는 도구('json')를 부르는 경우가 종종 있다.
+MAX_FORMAT_RETRIES = 3
+# 오래된 도구 결과는 줄여서 보낸다 (입력 토큰 절약. Groq 무료 등급은 요청 하나가 TPM 8K 를
+# 넘으면 413 으로 거절한다). level 이 클수록 강하게 줄인다. 원본 이력은 그대로 둔다.
+COMPACT_ROWS = 5
+MAX_COMPACTION = 2
+SQL_PREVIEW_CHARS = 160
+MAX_FORCED_CALLS = 2  # 예산 소진 후 final_answer 강제 호출 횟수
+
+FORCE_FINAL = {"type": "function", "function": {"name": final_answer.NAME}}
+
+OUT_OF_SCOPE_ANSWER = "사이트 분석 데이터 조회로 답할 수 없는 질문이라 처리하지 않았습니다."
+NO_CONCLUSION = (
+    "예산 안에서 결론을 정리하지 못했습니다. 실행한 조회 결과는 실행 단계에서 확인할 수 있습니다."
+)
+
+
+@dataclass
+class AgentEvent:
+    type: str  # started / classified / tool_call / tool_result / answer / error / done
+    data: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass
+class _Run:
+    run_id: str
+    question: str
+    sdk_key: str
+    started: float
+    persisted: bool = True
+    difficulty: Difficulty | None = None
+    status: str = "running"
+    answer: FinalAnswer | None = None
+    usage: Usage = field(default_factory=Usage)
+    state: RunState | None = None
+    llm_calls: int = 0
+    format_errors: int = 0
+    chars_per_token: float = 2.0  # 첫 호출 전 보수적 추정치 (한국어가 섞여 영어보다 작다)
+    wait_ms: int = 0  # LLM 레이트 리밋 대기 합
+
+
+class AgentLoop:
+    def __init__(
+        self,
+        llm: LLMClient,
+        executor: SQLExecutor,
+        store: RunStore,
+        *,
+        classify_params: dict[str, Any] | None = None,
+        step_max_tokens: int = 8192,
+        max_prompt_tokens: int = 0,
+        max_rows: int = 1000,
+        model_rows: int = 30,
+        clock: Callable[[], float] = time.monotonic,
+        today: Callable[[], date] = today_kst,
+    ):
+        self._llm = llm
+        self._executor = executor
+        self._store = store
+        self._router = Router(llm, params=classify_params)
+        self._run_sql = run_sql.RunSQL(executor, max_rows=max_rows, model_rows=model_rows)
+        self._describe = describe_table.DescribeTable(executor)
+        self._step_max_tokens = step_max_tokens
+        self._max_prompt_tokens = max_prompt_tokens  # 0 이면 제한 없음
+        self._model_rows = model_rows
+        self._clock = clock
+        self._today = today
+
+    async def run(self, question: str, *, sdk_key: str, user_id: str) -> AsyncIterator[AgentEvent]:
+        run = _Run(run_id="", question=question, sdk_key=sdk_key, started=self._clock())
+        try:
+            run.run_id = await self._persist(
+                self._store.create_run, sdk_key=sdk_key, user_id=user_id, question=question
+            )
+        except Exception:
+            log.exception("agent_runs 생성 실패. 실행 로그 없이 진행한다.")
+            run.run_id, run.persisted = str(uuid.uuid4()), False
+        yield AgentEvent("started", {"runId": run.run_id})
+
+        try:
+            async for event in self._execute(run):
+                yield event
+        except LLMError as e:
+            run.status = "failed"
+            yield AgentEvent("error", {"message": f"LLM 호출 실패: {e}"})
+        except Exception:
+            log.exception("에이전트 실행 실패 run_id=%s", run.run_id)
+            run.status = "failed"
+            yield AgentEvent("error", {"message": "에이전트 실행 중 오류가 발생했습니다."})
+        finally:
+            if run.status == "running":  # 클라이언트 연결 종료 등으로 중단됨
+                run.status = "failed"
+            await self._finish(run)
+        yield AgentEvent("done", self._summary(run))
+
+    # ------------------------------------------------------------------
+
+    async def _execute(self, run: _Run) -> AsyncIterator[AgentEvent]:
+        classification = await self._router.classify(run.question)
+        run.usage += classification.usage
+        run.difficulty = classification.difficulty
+        await self._persist_quietly(self._store.set_difficulty, run, classification.difficulty)
+
+        if classification.difficulty == "out_of_scope":
+            yield AgentEvent(
+                "classified", {"difficulty": "out_of_scope", "reason": classification.reason}
+            )
+            run.answer = FinalAnswer(summary=classification.reason or OUT_OF_SCOPE_ANSWER)
+            run.status = "rejected"
+            yield AgentEvent("answer", run.answer.to_dict())
+            return
+
+        budget = Budget(classification.difficulty, clock=self._clock)
+        state = run.state = RunState(sdk_key=run.sdk_key, budget=budget)
+        yield AgentEvent(
+            "classified",
+            {
+                "difficulty": classification.difficulty,
+                "reason": classification.reason,
+                "fallback": classification.fallback,
+                "budget": budget.remaining(),
+            },
+        )
+
+        limits = budget.limits
+        messages: list[dict[str, Any]] = prompts.agent_messages(
+            run.question,
+            self._today(),
+            max_tool_calls=limits.max_tool_calls,
+            max_sql=limits.max_sql,
+            result_rows=self._model_rows,
+        )
+        submit = SubmitFinalAnswer()
+        nudged = False
+        must_answer = False  # 도구 없이 답한 모델에게 final_answer 를 강제한다
+        forced_calls = format_errors = 0
+        exhausted = False
+
+        while run.answer is None and run.llm_calls < MAX_LLM_CALLS:
+            force = budget.exhausted() or must_answer
+            if force:
+                if forced_calls >= MAX_FORCED_CALLS:
+                    break
+                if budget.exhausted() and not exhausted:
+                    messages.append({"role": "system", "content": prompts.BUDGET_EXHAUSTED})
+                    exhausted = True
+                forced_calls += 1
+            elif budget.should_warn():
+                messages.append(
+                    {
+                        "role": "system",
+                        "content": prompts.BUDGET_WARNING.format(**budget.remaining()),
+                    }
+                )
+
+            tools = [final_answer.SCHEMA] if force else self._tool_schemas(budget)
+            prepared = self._fit(run, messages, tools, budget)
+            if prepared is None:  # 압축해도 입력 상한을 넘는다 -> 다음 호출에서 결론을 강제한다
+                log.warning("입력 토큰 상한 도달 run_id=%s", run.run_id)
+                budget.context_full = True
+                continue
+
+            try:
+                chat = await self._chat(run, prepared, tools, budget, force=force)
+            except LLMError as e:
+                if e.status == 413 and not budget.context_full:  # 공급자 요청 크기 한도
+                    log.warning("요청 크기 초과 run_id=%s: %s", run.run_id, str(e)[:300])
+                    budget.context_full = True
+                    if force:
+                        forced_calls -= 1  # 가장 강하게 압축한 이력으로 다시 시도한다
+                    continue
+                if (
+                    e.status == 400
+                    and "tool_use_failed" in str(e)
+                    and format_errors < MAX_FORMAT_RETRIES
+                ):
+                    format_errors += 1
+                    run.format_errors += 1
+                    log.warning("도구 호출 형식 오류 run_id=%s: %s", run.run_id, str(e)[:500])
+                    messages.append({"role": "user", "content": prompts.TOOL_FORMAT_RETRY})
+                    continue
+                raise
+            format_errors = 0
+
+            if chat.content or chat.tool_calls:
+                messages.append(chat.assistant_message())
+            if not chat.tool_calls:
+                log.warning(
+                    "도구 호출 없는 응답 run_id=%s finish=%s content=%r",
+                    run.run_id,
+                    chat.finish_reason,
+                    chat.content[:200],
+                )
+                if nudged:
+                    must_answer = True
+                else:
+                    messages.append({"role": "user", "content": prompts.ANSWER_WITH_TOOL})
+                    nudged = True
+                continue
+
+            for call in chat.tool_calls:
+                if run.answer is not None:  # 같은 응답에서 submit_report 뒤에 온 호출
+                    messages.append(
+                        _tool_message(call, {"ok": False, "error": "이미 답변을 제출했다."})
+                    )
+                    continue
+                async for event in self._call_tool(run, state, submit, call, final_only=force):
+                    yield event
+                step = state.steps[-1]
+                messages.append(_tool_message(call, step.for_model))
+                if step.final is not None:
+                    run.answer = step.final
+                    run.answer.forced = exhausted
+
+        if run.answer is None:
+            run.answer = FinalAnswer(summary=NO_CONCLUSION, forced=True)
+            exhausted = True
+        run.status = "budget_exhausted" if exhausted else "succeeded"
+        yield AgentEvent("answer", run.answer.to_dict())
+
+    def _fit(
+        self,
+        run: _Run,
+        messages: list[dict[str, Any]],
+        tools: list[dict[str, Any]],
+        budget: Budget,
+    ) -> list[dict[str, Any]] | None:
+        """입력 토큰 상한에 맞을 때까지 이력을 단계적으로 압축한다. 맞출 수 없으면 None.
+
+        이미 상한에 닿은 뒤(결론 강제 단계)에는 가장 강하게 압축한 이력을 그대로 쓴다.
+        """
+        if budget.context_full:
+            return compact_history(messages, level=MAX_COMPACTION)
+        if not self._max_prompt_tokens:
+            return compact_history(messages)
+        for level in range(MAX_COMPACTION + 1):
+            candidate = compact_history(messages, level=level)
+            if _chars(candidate, tools) / run.chars_per_token <= self._max_prompt_tokens:
+                return candidate
+        return None
+
+    async def _chat(
+        self,
+        run: _Run,
+        messages: list[dict[str, Any]],
+        tools: list[dict[str, Any]],
+        budget: Budget,
+        *,
+        force: bool,
+    ) -> ChatResult:
+        run.llm_calls += 1
+        try:
+            chat = await self._llm.chat(
+                messages,
+                tools=tools,
+                # auto 면 gpt-oss 가 도구 호출 없이 빈 응답으로 끝내기도 해 항상 도구를 고르게 한다
+                tool_choice=FORCE_FINAL if force else "required",
+                max_tokens=self._step_max_tokens,
+                reasoning_effort=budget.limits.reasoning_effort,
+            )
+        except LLMError as e:
+            self._waited(run, budget, e.wait_ms)
+            raise
+        self._waited(run, budget, chat.wait_ms)
+        run.usage += chat.usage
+        budget.tokens += chat.usage.prompt_tokens + chat.usage.completion_tokens
+        if chat.usage.prompt_tokens > 0:  # 다음 요청의 토큰 추정에 쓴다
+            run.chars_per_token = _chars(messages, tools) / chat.usage.prompt_tokens
+        return chat
+
+    @staticmethod
+    def _waited(run: _Run, budget: Budget, wait_ms: int) -> None:
+        run.wait_ms += wait_ms
+        budget.excluded_s += wait_ms / 1000
+
+    @staticmethod
+    def _tool_schemas(budget: Budget) -> list[dict[str, Any]]:
+        schemas = [describe_table.SCHEMA, final_answer.SCHEMA]
+        if budget.can_run_sql():
+            schemas.insert(0, run_sql.SCHEMA)
+        if budget.can_promote():
+            schemas.append(request_more_budget.SCHEMA)
+        return schemas
+
+    async def _call_tool(
+        self,
+        run: _Run,
+        state: RunState,
+        submit: SubmitFinalAnswer,
+        call: ToolCall,
+        *,
+        final_only: bool,
+    ) -> AsyncIterator[AgentEvent]:
+        """도구 하나를 실행해 state.steps 에 쌓고 tool_call / tool_result 이벤트를 낸다."""
+        seq = len(state.steps) + 1
+        try:
+            args = parse_arguments(call.arguments)
+            parse_error = None
+        except ValueError as e:
+            args, parse_error = {"raw": call.arguments}, str(e)
+        yield AgentEvent("tool_call", {"seq": seq, "tool": call.name, "input": args})
+
+        started = time.monotonic()
+        if parse_error:
+            outcome = ToolOutcome.fail(parse_error)
+        else:
+            outcome = await self._dispatch(state, submit, call.name, args, seq, final_only)
+        if outcome.charged:
+            state.budget.tool_calls += 1
+        step = Step(
+            seq=seq,
+            tool=call.name or "(unknown)",
+            input=args,
+            output=outcome.output,
+            error=outcome.error,
+            duration_ms=int((time.monotonic() - started) * 1000),
+            result=outcome.result,
+            for_model=outcome.for_model,
+            final=outcome.final,
+        )
+        state.steps.append(step)
+        await self._persist_quietly(self._save_step, run, step)
+        yield AgentEvent(
+            "tool_result",
+            {
+                "seq": seq,
+                "tool": step.tool,
+                "output": step.output,
+                "error": step.error,
+                "durationMs": step.duration_ms,
+            },
+        )
+
+    async def _dispatch(
+        self,
+        state: RunState,
+        submit: SubmitFinalAnswer,
+        name: str,
+        args: dict[str, Any],
+        seq: int,
+        final_only: bool,
+    ) -> ToolOutcome:
+        if name == final_answer.NAME:
+            return await submit(state, args, seq)
+        if final_only:
+            return ToolOutcome.fail(
+                "예산을 모두 썼다. submit_report 만 호출할 수 있다.", charged=False
+            )
+        if name == request_more_budget.NAME:
+            return await request_more_budget.request_more_budget(state, args, seq)
+        handlers = {run_sql.NAME: self._run_sql, describe_table.NAME: self._describe}
+        handler = handlers.get(name)
+        if handler is None:
+            return ToolOutcome.fail(f"알 수 없는 도구입니다: {name}")
+        if not state.budget.can_call_tool():
+            return ToolOutcome.fail(
+                "툴 호출 예산을 모두 썼다. 지금까지의 결과로 submit_report 를 제출하라.",
+                charged=False,
+            )
+        return await handler(state, args, seq)
+
+    # --- 실행 로그 -------------------------------------------------------
+
+    def _save_step(self, run_id: str, step: Step) -> None:
+        self._store.add_step(
+            run_id,
+            seq=step.seq,
+            tool=step.tool,
+            input=step.input,
+            output=step.output,
+            error=step.error,
+            duration_ms=step.duration_ms,
+        )
+
+    async def _finish(self, run: _Run) -> None:
+        state = run.state
+        totals = RunTotals(
+            status=run.status,
+            difficulty=run.difficulty,
+            answer=run.answer.to_dict() if run.answer else None,
+            tool_calls=len(state.steps) if state else 0,
+            input_tokens=run.usage.prompt_tokens,
+            output_tokens=run.usage.completion_tokens,
+            latency_ms=self._latency_ms(run),
+        )
+        await self._persist_quietly(self._store.finish_run, run, totals)
+
+    async def _persist(self, fn: Callable[..., Any], *args: Any, **kwargs: Any) -> Any:
+        return await asyncio.to_thread(fn, *args, **kwargs)
+
+    async def _persist_quietly(self, fn: Callable[..., Any], run: _Run, *args: Any) -> None:
+        """실행 로그 저장 실패가 답변을 막지 않게 한다."""
+        if not run.persisted:
+            return
+        try:
+            await asyncio.shield(asyncio.to_thread(fn, run.run_id, *args))
+        except Exception:
+            log.exception("실행 로그 저장 실패 run_id=%s fn=%s", run.run_id, fn.__name__)
+
+    def _latency_ms(self, run: _Run) -> int:
+        return int((self._clock() - run.started) * 1000)
+
+    def _summary(self, run: _Run) -> dict[str, Any]:
+        state = run.state
+        return {
+            "runId": run.run_id,
+            "status": run.status,
+            "difficulty": state.budget.difficulty if state else run.difficulty,
+            "toolCalls": len(state.steps) if state else 0,
+            "sqlRuns": state.budget.sql_runs if state else 0,
+            "llmCalls": run.llm_calls,
+            "formatErrors": run.format_errors,
+            "rateLimitWaitMs": run.wait_ms,
+            "usage": vars(run.usage),
+            "latencyMs": self._latency_ms(run),
+        }
+
+    async def aclose(self) -> None:
+        await self._llm.aclose()
+        await asyncio.to_thread(self._executor.close)  # 실행 로그 저장소는 앱이 따로 닫는다
+
+
+def _tool_message(call: ToolCall, content: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "role": "tool",
+        "tool_call_id": call.id,
+        "content": json.dumps(content, ensure_ascii=False, default=str),
+    }
+
+
+def compact_history(messages: list[dict[str, Any]], *, level: int = 0) -> list[dict[str, Any]]:
+    """모델에게 보낼 이력 사본.
+
+    level 0: 최근 2개를 제외한 도구 결과의 rows 를 앞 5행으로
+    level 1: 최근 2개를 제외한 도구 결과의 rows 를 빼고, 지난 run_sql 인자의 SQL 을 앞부분만 남긴다
+    level 2: level 1 을 최근 1개만 남기고 적용
+    """
+    keep = 2 if level < 2 else 1
+    tool_indexes = [i for i, m in enumerate(messages) if m.get("role") == "tool"]
+    old_results = set(tool_indexes[:-keep])
+    call_indexes = [
+        i for i, m in enumerate(messages) if m.get("role") == "assistant" and m.get("tool_calls")
+    ]
+    old_calls = set(call_indexes[:-keep]) if level >= 1 else set()
+    rows = COMPACT_ROWS if level == 0 else 0
+
+    compacted = []
+    for i, message in enumerate(messages):
+        if i in old_results:
+            message = _compact_result(message, rows)
+        elif i in old_calls:
+            message = _compact_call(message)
+        compacted.append(message)
+    return compacted
+
+
+def _compact_result(message: dict[str, Any], rows: int) -> dict[str, Any]:
+    try:
+        content = json.loads(message["content"])
+    except (KeyError, TypeError, json.JSONDecodeError):
+        return message
+    if not isinstance(content, dict):
+        return message
+    if isinstance(content.get("sample"), dict):  # describe_table
+        content.pop("sample")
+    elif len(content.get("rows") or []) > rows:
+        content["rows"] = content["rows"][:rows]
+        content["note"] = f"이전 결과라 앞 {rows}행만 남겼다. step_id 로 근거 인용은 할 수 있다."
+    else:
+        return message
+    return {**message, "content": json.dumps(content, ensure_ascii=False, default=str)}
+
+
+def _compact_call(message: dict[str, Any]) -> dict[str, Any]:
+    calls = []
+    for call in message["tool_calls"]:
+        function = call.get("function") or {}
+        if function.get("name") == run_sql.NAME:
+            try:
+                args = json.loads(function.get("arguments") or "{}")
+            except json.JSONDecodeError:
+                args = None
+            if isinstance(args, dict) and len(str(args.get("sql", ""))) > SQL_PREVIEW_CHARS:
+                args["sql"] = str(args["sql"])[:SQL_PREVIEW_CHARS] + " ...(생략)"
+                function = {**function, "arguments": json.dumps(args, ensure_ascii=False)}
+                call = {**call, "function": function}
+        calls.append(call)
+    return {**message, "tool_calls": calls}
+
+
+def _chars(messages: list[dict[str, Any]], tools: list[dict[str, Any]]) -> int:
+    return len(json.dumps(messages, ensure_ascii=False)) + len(
+        json.dumps(tools, ensure_ascii=False)
+    )

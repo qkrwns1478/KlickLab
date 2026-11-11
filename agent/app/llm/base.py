@@ -5,9 +5,10 @@ from typing import Any, Protocol
 class LLMError(Exception):
     """LLM 공급자 호출 실패 (네트워크, 4xx/5xx, 빈 응답)."""
 
-    def __init__(self, message: str, *, status: int | None = None):
+    def __init__(self, message: str, *, status: int | None = None, wait_ms: int = 0):
         super().__init__(message)
         self.status = status
+        self.wait_ms = wait_ms  # 실패 전까지 레이트 리밋 간격·재시도로 기다린 시간
 
 
 @dataclass
@@ -25,21 +26,53 @@ class Usage:
 
 
 @dataclass
+class ToolCall:
+    id: str
+    name: str
+    arguments: str  # 모델이 만든 JSON 문자열 그대로 (해석 실패도 결과로 돌려주기 위해)
+
+
+@dataclass
 class ChatResult:
     content: str
     reasoning: str | None = None
     finish_reason: str | None = None
     usage: Usage = field(default_factory=Usage)
-    latency_ms: int = 0
+    latency_ms: int = 0  # wait_ms 포함
+    tool_calls: list[ToolCall] = field(default_factory=list)
+    wait_ms: int = 0  # 요청 간 최소 간격·429/5xx 재시도로 기다린 시간
+
+    def assistant_message(self) -> dict[str, Any]:
+        """대화 이력에 다시 넣을 assistant 메시지 (OpenAI Chat Completions 형식)."""
+        message: dict[str, Any] = {"role": "assistant", "content": self.content or None}
+        if self.tool_calls:
+            message["tool_calls"] = [
+                {
+                    "id": c.id,
+                    "type": "function",
+                    "function": {"name": c.name, "arguments": c.arguments},
+                }
+                for c in self.tool_calls
+            ]
+        return message
 
 
 class LLMClient(Protocol):
-    """채팅 완성 모델 공통 인터페이스. 공급자별 파라미터는 **params 로 넘긴다."""
+    """채팅 완성 모델 공통 인터페이스. 공급자별 파라미터는 **params 로 넘긴다.
+
+    tools 는 OpenAI function 스키마 목록, tool_choice 는 "auto" / "required" / 함수 지정 dict.
+    """
 
     model: str
 
     async def chat(
-        self, messages: list[dict[str, str]], *, max_tokens: int | None = None, **params: Any
+        self,
+        messages: list[dict[str, Any]],
+        *,
+        max_tokens: int | None = None,
+        tools: list[dict[str, Any]] | None = None,
+        tool_choice: str | dict[str, Any] | None = None,
+        **params: Any,
     ) -> ChatResult: ...
 
     async def aclose(self) -> None: ...

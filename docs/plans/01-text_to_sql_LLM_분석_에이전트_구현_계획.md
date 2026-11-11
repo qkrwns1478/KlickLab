@@ -298,10 +298,12 @@ CREATE TABLE agent_knowledge ( ... );       -- 6.4 참고
 
 ### Phase 2. Tool Loop와 실행 예산
 
-- [ ] Claude tool use 기반 루프, 4개 툴, 실패 결과 피드백을 통한 자가 수정
-- [ ] 난이도 분류기와 예산 관리, 강제 종료 시 요약
-- [ ] `final_answer` 근거 연결 검증
-- [ ] SSE 스트리밍, `agent_runs`/`agent_steps` 적재
+- [x] Claude tool use 기반 루프, 4개 툴, 실패 결과 피드백을 통한 자가 수정
+- [x] 난이도 분류기와 예산 관리, 강제 종료 시 요약
+- [x] `final_answer` 근거 연결 검증
+- [x] SSE 스트리밍, `agent_runs`/`agent_steps` 적재
+
+- 작업 로그: [Phase 2 Tool Loop와 실행 예산 (Groq gpt-oss-120b)](../logs/2026-11-11/03-에이전트_Phase2_Tool_Loop와_실행_예산.md)
 
 ### Phase 3. 지식 베이스 (RAG)
 

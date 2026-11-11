@@ -17,14 +17,16 @@ class Settings(BaseSettings):
     jwt_secret: str = ""
     cors_allowed_origins: str = "http://localhost:5173,http://127.0.0.1:5173"
 
-    # LLM (OpenAI 호환 Chat Completions). 기본값은 K-EXAONE 2.5
-    llm_provider: str = "exaone"
+    # LLM (OpenAI 호환 Chat Completions). Phase 2 부터 기본값은 Groq gpt-oss-120b
+    llm_provider: str = "groq"
     exaone_api_key: str = ""
     exaone_base_url: str = "https://api.exaone.ai/v1"
     exaone_model: str = "k-exaone_v2.5"
     groq_api_key: str = ""
     groq_base_url: str = "https://api.groq.com/openai/v1"
     groq_model: str = "openai/gpt-oss-120b"
+    # Groq 무료 등급 RPM 30 → 요청 간 2초
+    groq_min_interval_seconds: float = 2.0
     # 추론 토큰이 max_tokens 에 포함되므로 SQL 생성에는 넉넉하게 둔다
     llm_sql_max_tokens: int = 16384
     llm_sql_reasoning_effort: str = "high"
@@ -36,6 +38,16 @@ class Settings(BaseSettings):
     # 공급자 레이트 리밋 대응 (K-EXAONE 2.5 무료 등급: 초당 1회)
     llm_min_interval_seconds: float = 1.0
     llm_max_retries: int = 3
+
+    # Tool Loop (Phase 2)
+    agent_classify_max_tokens: int = 1024
+    agent_classify_reasoning_effort: str = "low"
+    agent_step_max_tokens: int = 3072
+    # 요청 하나의 입력 토큰 상한 (0 = 제한 없음). Groq 무료 등급은 TPM 8K 를 넘는 요청을 413 으로
+    # 거절하며, 이때 요청 크기에 max_tokens 가 더해지는 것으로 보여 8000 - 3072 보다 작게 둔다
+    agent_max_prompt_tokens: int = 4800
+    # LLM 에 돌려주는 SQL 결과 행 수 (토큰 절약). 실행 로그에는 sql_result_rows 까지 남긴다
+    agent_tool_result_rows: int = 20
 
     anthropic_api_key: str = ""
 
