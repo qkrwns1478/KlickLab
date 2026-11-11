@@ -1,0 +1,114 @@
+# 용어·값 문서: 기간 표현, 값 도메인, 데이터 규칙
+
+- name: period_day
+  title: 기간 — 오늘, 어제, N일 전
+  aliases: [오늘, 어제, 그저께, 며칠 전, 15일 전]
+  content: |
+    - 오늘 = current_date (오늘 데이터는 아직 일부만 있다)
+    - 어제 = summary_date = current_date - 1
+    - N일 전 하루 = summary_date = current_date - N
+    - events 는 timestamp >= current_date - N AND timestamp < current_date - N + 1
+
+- name: period_recent_days
+  title: 기간 — 최근 N일, 그 전 N일
+  aliases: [최근 7일, 최근 14일, 최근 30일, 지난 7일, 일주일간, 한 달간, 직전 기간]
+  content: |
+    - 최근 N일 = 오늘을 제외한 N일: summary_date >= current_date - N AND summary_date < current_date
+    - 그 전 N일 = summary_date >= current_date - 2*N AND summary_date < current_date - N
+    - events 는 timestamp >= current_date - N AND timestamp < current_date
+
+- name: period_week
+  title: 기간 — 이번 주, 지난주 (월요일 시작)
+  aliases: [이번주, 지난주, 저번 주, 금주, 전주, 주간 비교, 지난주 대비]
+  content: |
+    - 이번 주 = summary_date >= date_trunc('week', current_date)::date (오늘까지)
+    - 지난주 = summary_date >= date_trunc('week', current_date)::date - 7
+               AND summary_date < date_trunc('week', current_date)::date
+    - 두 주를 한 쿼리로 비교할 때는 sum(x) FILTER (WHERE summary_date < date_trunc('week', current_date)::date) 처럼 열을 나눈다
+    - 이번 주는 진행 중이라 일수가 다르다. 합계를 비교할 때는 이 점을 밝히거나 일평균을 함께 본다
+
+- name: period_month
+  title: 기간 — 이번 달, 지난달
+  aliases: [이번달, 지난달, 저번 달, 월간, 당월, 전월]
+  content: |
+    - 이번 달 = summary_date >= date_trunc('month', current_date)::date
+    - 지난달 = summary_date >= (date_trunc('month', current_date) - interval '1 month')::date
+               AND summary_date < date_trunc('month', current_date)::date
+
+- name: weekday
+  title: 요일, 주말과 평일
+  aliases: [요일별, 주말, 평일, 월요일, 화요일]
+  content: |
+    - ISO 요일 번호(월=1 … 일=7) = extract(isodow FROM summary_date)
+    - 주말 = extract(isodow FROM summary_date) IN (6, 7)
+    - 요일별 하루 평균은 날짜별 합계를 먼저 구한 뒤 요일로 묶어 avg() 한다
+
+- name: hour_of_day
+  title: 시간대
+  aliases: [시간대별, 몇 시, 피크 시간, 점심, 저녁]
+  content: |
+    - summary_hour (0~23) 는 세션 시작 시각(Asia/Seoul)이다. agg_traffic_hourly, agg_user_session_hourly 에 있다
+    - events 는 extract(hour FROM timestamp)
+
+- name: data_rules
+  title: 데이터 공통 규칙 (사이트, 시간대, 세션 속성)
+  aliases: [sdk_key, 타임존, 세션 기준]
+  content: |
+    - 모든 테이블은 sdk_key(사이트) 단위이며 현재 사이트 데이터만 보이도록 DB 가 자동으로 거른다. sdk_key 조건은 쓰지 않는다
+    - 날짜·시간은 모두 Asia/Seoul 기준이다
+    - 세션 속성(유입 경로, 기기, 지역, 성별, 연령대)은 세션 첫 이벤트 기준, 세션 날짜·시간대는 세션 시작 시각 기준이다
+    - 일 단위 이상 질문은 agg_* 테이블을 우선 쓰고, 집계에 없는 조합만 events 에서 계산한다
+
+- name: traffic_channels
+  title: 유입 경로 값 (traffic_source / traffic_medium)과 채널 그룹
+  aliases: [유입 채널, 채널, 소스, 매체, 광고, 검색, 소셜, 이메일]
+  content: |
+    - source/medium 조합: direct/none, naver/cpc, naver/organic, google/organic, daum/organic, instagram/cpc,
+      instagram/social, facebook/cpc, kakao/push, kakao/social, newsletter/email, youtube/referral
+    - 채널 그룹(traffic_medium 기준): 검색 광고 = cpc, 자연 검색 = organic, 소셜 = social, 이메일 = email,
+      푸시 = push, 추천 = referral, 직접 유입 = direct/none
+    - 소스별은 traffic_source, 매체별은 traffic_medium 으로 묶는다
+
+- name: campaigns
+  title: 캠페인 값 (traffic_campaign)
+  aliases: [캠페인, 프로모션, 세일, 뉴스레터]
+  content: |
+    - nov_mega_sale(11월 메가 세일 광고), brand_search(브랜드 검색 광고), retargeting(리타게팅 광고),
+      weekly_newsletter(주간 뉴스레터), ''(캠페인 없음)
+    - 캠페인 없음은 NULL 이 아니라 빈 문자열이다
+
+- name: event_names
+  title: 이벤트 이름 (event_name)
+  aliases: [이벤트, 결제, 회원가입, 장바구니, 클릭, 문의]
+  content: |
+    - page_view(페이지 조회), auto_click(클릭), add_to_cart(장바구니 담기), is_payment(결제 완료),
+      is_signup(회원가입), contact_submit(문의 접수)
+    - 전환으로 집계하는 이벤트: is_payment, is_signup
+
+- name: pages
+  title: 주요 페이지 경로 (page_path)
+  aliases: [페이지, 상품 페이지, 장바구니, 결제 페이지, 홈]
+  content: |
+    - / (홈), /products (상품 목록), /products/1 ~ /products/24 (상품 상세), /cart (장바구니),
+      /checkout (결제), /checkout/success (결제 완료), /login, /signup, /signup/success, /mypage,
+      /orders, /wishlist, /faq, /contact, /contact/success
+    - 상품 상세 전체는 page_path LIKE '/products/%'
+    - 구매 퍼널: /products/{id} → /cart → /checkout → /checkout/success
+
+- name: devices
+  title: 기기·OS·브라우저·지역 값
+  aliases: [기기, 디바이스, 모바일, 데스크톱, 태블릿, 브라우저, 운영체제, 지역, 도시]
+  content: |
+    - device_type: desktop, mobile, tablet
+    - device_os: Android, iOS, iPadOS, Windows, macOS, Linux
+    - browser: Chrome, Safari, Samsung Internet, Edge, Whale, Firefox
+    - city: Seoul, Busan, Incheon, Daegu, Daejeon, Gwangju, Ulsan, Sejong, Gyeonggi-do, Gangwon-do,
+      Chungcheongbuk-do, Chungcheongnam-do, Jeollabuk-do, Jeollanam-do, Gyeongsangbuk-do, Gyeongsangnam-do, Jeju-do
+
+- name: demographics
+  title: 성별·연령대 값
+  aliases: [성별, 연령, 나이, 남성, 여성, 20대]
+  content: |
+    - 집계 테이블: gender = male / female / unknown, age_group = 10s, 20s, 30s, 40s, 50s, 60s+, unknown
+    - events: user_gender = male / female / NULL, user_age 는 나이 숫자 (비회원은 NULL)
+    - 배치 집계(segment_type): user_gender, user_age(10s …), traffic_source, device_type

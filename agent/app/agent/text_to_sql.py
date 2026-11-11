@@ -8,6 +8,7 @@ from datetime import date, datetime, timedelta, timezone
 from typing import Any, Literal
 
 from app.agent import prompts
+from app.knowledge.context import KnowledgeContext
 from app.llm import LLMClient, Usage
 from app.sql.executor import QueryResult, SQLExecutionError, SQLExecutor
 from app.sql.guard import SQLRejected, guard
@@ -32,6 +33,8 @@ class SQLDraft:
     usage: Usage
     latency_ms: int
     truncated: bool = False  # 토큰 한도에서 출력이 잘림
+    knowledge: list[str] = field(default_factory=list)  # rag 모드에서 프롬프트에 넣은 문서
+    retrieval_ms: int = 0
 
 
 @dataclass
@@ -70,24 +73,40 @@ class TextToSQL:
         sql_params: dict[str, Any] | None = None,
         answer_params: dict[str, Any] | None = None,
         max_rows: int = 1000,
+        knowledge: KnowledgeContext | None = None,
     ):
         self._llm = llm
         self._executor = executor
+        self._knowledge = knowledge
         self._sql_params = sql_params or {}
         self._answer_params = answer_params or {}
         self._max_rows = max_rows
 
     async def generate_sql(self, question: str, *, today: date | None = None) -> SQLDraft:
+        schema, knowledge, retrieval_ms = prompts.SCHEMA_SUMMARY, [], 0
+        if self._knowledge is not None:
+            context = await self._knowledge.aschema_for(question)
+            schema, knowledge, retrieval_ms = context.text, context.doc_ids, context.elapsed_ms
         chat = await self._llm.chat(
-            prompts.sql_messages(question, today or today_kst()), **self._sql_params
+            prompts.sql_messages(question, today or today_kst(), schema=schema), **self._sql_params
         )
         sql, reason = extract_sql(chat.content)
-        return SQLDraft(sql, reason, chat.usage, chat.latency_ms, chat.finish_reason == "length")
+        return SQLDraft(
+            sql,
+            reason,
+            chat.usage,
+            chat.latency_ms,
+            chat.finish_reason == "length",
+            knowledge,
+            retrieval_ms,
+        )
 
     async def ask(self, question: str, sdk_key: str) -> AskResult:
         draft = await self.generate_sql(question)
         out = AskResult(status="failed", question=question, usage=draft.usage)
         out.timings["generate_ms"] = draft.latency_ms
+        if self._knowledge is not None:
+            out.timings["retrieval_ms"] = draft.retrieval_ms
 
         if draft.sql is None:
             if draft.no_sql_reason:

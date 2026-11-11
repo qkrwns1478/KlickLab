@@ -61,6 +61,7 @@ class LLMClient(Protocol):
     """채팅 완성 모델 공통 인터페이스. 공급자별 파라미터는 **params 로 넘긴다.
 
     tools 는 OpenAI function 스키마 목록, tool_choice 는 "auto" / "required" / 함수 지정 dict.
+    timeout 은 이 호출의 응답 시간 제한(초)이고, 넘으면 status=408 LLMError 를 낸다.
     """
 
     model: str
@@ -72,6 +73,7 @@ class LLMClient(Protocol):
         max_tokens: int | None = None,
         tools: list[dict[str, Any]] | None = None,
         tool_choice: str | dict[str, Any] | None = None,
+        timeout: float | None = None,
         **params: Any,
     ) -> ChatResult: ...
 

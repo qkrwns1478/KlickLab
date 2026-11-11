@@ -7,6 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api import ask, runs
 from app.auth import AuthUser, current_user
 from app.config import get_settings
+from app.knowledge.context import close_knowledge_context
 
 
 @asynccontextmanager
@@ -21,6 +22,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             await component.aclose()
     if app.state.run_store is not None:
         app.state.run_store.close()
+    close_knowledge_context()
 
 
 app = FastAPI(title="KlickLab Agent", lifespan=lifespan)

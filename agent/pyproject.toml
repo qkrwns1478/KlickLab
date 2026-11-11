@@ -15,6 +15,22 @@ dependencies = [
     "pyyaml>=6",
 ]
 
+[project.optional-dependencies]
+# 지식 베이스 임베딩을 로컬에서 계산할 때 (EMBEDDING_PROVIDER=local, bge-m3). 없으면 키워드 검색만 한다
+embedding = [
+    "sentence-transformers>=3.3",
+    "torch>=2.5",
+]
+
+[tool.uv.sources]
+torch = [{ index = "pytorch-cpu" }]
+
+# GPU 빌드는 이미지가 수 GB 로 커진다. 질의 임베딩 1건은 CPU 로 충분하다
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
 [dependency-groups]
 dev = [
     "pytest>=8.3",
@@ -41,3 +57,4 @@ extend-immutable-calls = ["fastapi.Depends"]
 [tool.ruff.lint.per-file-ignores]
 # 프롬프트 본문은 줄바꿈이 모델 입력을 바꾸므로 길이 제한에서 제외한다
 "app/agent/prompts.py" = ["E501"]
+"app/knowledge/context.py" = ["E501"]

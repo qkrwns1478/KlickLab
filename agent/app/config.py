@@ -49,6 +49,19 @@ class Settings(BaseSettings):
     # LLM 에 돌려주는 SQL 결과 행 수 (토큰 절약). 실행 로그에는 sql_result_rows 까지 남긴다
     agent_tool_result_rows: int = 20
 
+    # 지식 베이스 (Phase 3)
+    #  prompt: 스키마 요약·지표 정의를 시스템 프롬프트에 직접 넣는다 (Phase 1~2 기준선)
+    #  rag   : 질문으로 검색한 문서만 넣고, 루프에서는 search_knowledge 로 더 찾는다
+    knowledge_mode: str = "prompt"
+    # 질문마다 미리 넣을 문서 수 (종류별). 기본값은 스키마 요약과 비슷한 크기(약 5,100자)
+    knowledge_context_quota: str = "table:2,metric:2,glossary:3,example:1"
+    knowledge_search_k: int = 4  # search_knowledge 도구 결과 수
+    # local: sentence-transformers(bge-m3) / none: 키워드 검색만
+    embedding_provider: str = "local"
+    embedding_model: str = "BAAI/bge-m3"
+    embedding_dimension: int = 1024  # agent_knowledge.embedding vector(1024)
+    embedding_device: str = "cpu"
+
     anthropic_api_key: str = ""
 
     # SQL 실행 제한

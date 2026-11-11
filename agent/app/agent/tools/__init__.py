@@ -33,6 +33,9 @@ class RunState:
     budget: Budget
     steps: list[Step] = field(default_factory=list)
     sql_cache: dict[str, int] = field(default_factory=dict)  # 정규화한 SQL → step seq
+    # 지식 베이스: 모델에게 이미 보여 준 문서("kind/name")와 같은 검색 → step seq
+    knowledge_seen: set[str] = field(default_factory=set)
+    search_cache: dict[str, int] = field(default_factory=dict)
 
     def sql_step(self, seq: Any) -> Step | None:
         """성공한 run_sql step (근거로 인용할 수 있는 step)."""

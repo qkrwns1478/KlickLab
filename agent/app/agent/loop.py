@@ -1,4 +1,4 @@
-"""Phase 2 Tool Loop: 난이도 분류 → 예산 안에서 도구 호출 반복 → 근거가 연결된 final_answer.
+"""Tool Loop: 난이도 분류 → (rag 모드) 지식 검색 → 예산 안에서 도구 호출 반복 → 근거가 있는 답변.
 
 run() 은 실행 과정을 이벤트로 내보내는 async generator 다 (SSE 로 그대로 전달된다).
     started → classified → (tool_call → tool_result)* → answer → done
@@ -29,9 +29,11 @@ from app.agent.tools import (
     parse_arguments,
     request_more_budget,
     run_sql,
+    search_knowledge,
 )
 from app.agent.tools.final_answer import FinalAnswer, SubmitFinalAnswer
-from app.llm import ChatResult, LLMClient, LLMError, ToolCall, Usage
+from app.knowledge.context import KnowledgeContext
+from app.llm import TIMEOUT_STATUS, ChatResult, LLMClient, LLMError, ToolCall, Usage
 from app.sql.executor import SQLExecutor
 
 log = logging.getLogger(__name__)
@@ -46,6 +48,10 @@ COMPACT_ROWS = 5
 MAX_COMPACTION = 2
 SQL_PREVIEW_CHARS = 160
 MAX_FORCED_CALLS = 2  # 예산 소진 후 final_answer 강제 호출 횟수
+# 모델 호출 하나의 응답 시간 제한. 남은 시간 예산을 넘기지 못하게 하되 하한을 둔다.
+# 결론 제출은 이미 모은 근거로 쓰는 마지막 호출이라 예산이 끝난 뒤에도 이만큼은 기다린다.
+MIN_CALL_TIMEOUT_S = 30.0
+FINAL_CALL_TIMEOUT_S = 60.0
 
 FORCE_FINAL = {"type": "function", "function": {"name": final_answer.NAME}}
 
@@ -77,6 +83,7 @@ class _Run:
     format_errors: int = 0
     chars_per_token: float = 2.0  # 첫 호출 전 보수적 추정치 (한국어가 섞여 영어보다 작다)
     wait_ms: int = 0  # LLM 레이트 리밋 대기 합
+    knowledge: list[str] = field(default_factory=list)  # 시스템 프롬프트에 넣은 지식 문서
 
 
 class AgentLoop:
@@ -93,6 +100,7 @@ class AgentLoop:
         model_rows: int = 30,
         clock: Callable[[], float] = time.monotonic,
         today: Callable[[], date] = today_kst,
+        knowledge: KnowledgeContext | None = None,
     ):
         self._llm = llm
         self._executor = executor
@@ -105,6 +113,12 @@ class AgentLoop:
         self._model_rows = model_rows
         self._clock = clock
         self._today = today
+        self._knowledge = knowledge
+        self._search = (
+            search_knowledge.SearchKnowledge(knowledge.retriever, k=knowledge.search_k)
+            if knowledge is not None
+            else None
+        )
 
     async def run(self, question: str, *, sdk_key: str, user_id: str) -> AsyncIterator[AgentEvent]:
         run = _Run(run_id="", question=question, sdk_key=sdk_key, started=self._clock())
@@ -152,15 +166,16 @@ class AgentLoop:
 
         budget = Budget(classification.difficulty, clock=self._clock)
         state = run.state = RunState(sdk_key=run.sdk_key, budget=budget)
-        yield AgentEvent(
-            "classified",
-            {
-                "difficulty": classification.difficulty,
-                "reason": classification.reason,
-                "fallback": classification.fallback,
-                "budget": budget.remaining(),
-            },
-        )
+        schema = await self._schema(run, state)
+        classified: dict[str, Any] = {
+            "difficulty": classification.difficulty,
+            "reason": classification.reason,
+            "fallback": classification.fallback,
+            "budget": budget.remaining(),
+        }
+        if self._knowledge is not None:
+            classified["knowledge"] = run.knowledge
+        yield AgentEvent("classified", classified)
 
         limits = budget.limits
         messages: list[dict[str, Any]] = prompts.agent_messages(
@@ -169,6 +184,8 @@ class AgentLoop:
             max_tool_calls=limits.max_tool_calls,
             max_sql=limits.max_sql,
             result_rows=self._model_rows,
+            schema=schema,
+            search_tool=self._search is not None,
         )
         submit = SubmitFinalAnswer()
         nudged = False
@@ -203,6 +220,11 @@ class AgentLoop:
             try:
                 chat = await self._chat(run, prepared, tools, budget, force=force)
             except LLMError as e:
+                if e.status == TIMEOUT_STATUS:
+                    # 같은 요청을 다시 보내도 같은 시간이 걸린다. 모은 근거로 결론을 내게 한다.
+                    log.warning("모델 호출 시간 초과 run_id=%s force=%s", run.run_id, force)
+                    budget.timed_out = True
+                    continue
                 if e.status == 413 and not budget.context_full:  # 공급자 요청 크기 한도
                     log.warning("요청 크기 초과 run_id=%s: %s", run.run_id, str(e)[:300])
                     budget.context_full = True
@@ -258,6 +280,19 @@ class AgentLoop:
         run.status = "budget_exhausted" if exhausted else "succeeded"
         yield AgentEvent("answer", run.answer.to_dict())
 
+    async def _schema(self, run: _Run, state: RunState) -> str:
+        """시스템 프롬프트의 스키마 부분. rag 모드에서 검색이 실패하면 스키마 요약으로 진행한다."""
+        if self._knowledge is None:
+            return prompts.SCHEMA_SUMMARY
+        try:
+            context = await self._knowledge.aschema_for(run.question)
+        except Exception:
+            log.exception("지식 베이스 검색 실패 run_id=%s. 스키마 요약으로 진행한다.", run.run_id)
+            return prompts.SCHEMA_SUMMARY
+        run.knowledge = context.doc_ids
+        state.knowledge_seen.update(context.doc_ids)
+        return context.text
+
     def _fit(
         self,
         run: _Run,
@@ -297,6 +332,7 @@ class AgentLoop:
                 tool_choice=FORCE_FINAL if force else "required",
                 max_tokens=self._step_max_tokens,
                 reasoning_effort=budget.limits.reasoning_effort,
+                timeout=_call_timeout(budget, force),
             )
         except LLMError as e:
             self._waited(run, budget, e.wait_ms)
@@ -313,9 +349,10 @@ class AgentLoop:
         run.wait_ms += wait_ms
         budget.excluded_s += wait_ms / 1000
 
-    @staticmethod
-    def _tool_schemas(budget: Budget) -> list[dict[str, Any]]:
+    def _tool_schemas(self, budget: Budget) -> list[dict[str, Any]]:
         schemas = [describe_table.SCHEMA, final_answer.SCHEMA]
+        if self._search is not None:
+            schemas.insert(0, search_knowledge.SCHEMA)
         if budget.can_run_sql():
             schemas.insert(0, run_sql.SCHEMA)
         if budget.can_promote():
@@ -388,13 +425,19 @@ class AgentLoop:
             )
         if name == request_more_budget.NAME:
             return await request_more_budget.request_more_budget(state, args, seq)
-        handlers = {run_sql.NAME: self._run_sql, describe_table.NAME: self._describe}
+        handlers: dict[str, Callable[..., Any]] = {
+            run_sql.NAME: self._run_sql,
+            describe_table.NAME: self._describe,
+        }
+        if self._search is not None:
+            handlers[search_knowledge.NAME] = self._search
         handler = handlers.get(name)
         if handler is None:
             return ToolOutcome.fail(f"알 수 없는 도구입니다: {name}")
         if not state.budget.can_call_tool():
+            reason = state.budget.exhausted_reason() or "툴 호출"
             return ToolOutcome.fail(
-                "툴 호출 예산을 모두 썼다. 지금까지의 결과로 submit_report 를 제출하라.",
+                f"{reason} 예산을 모두 썼다. 지금까지의 결과로 submit_report 를 제출하라.",
                 charged=False,
             )
         return await handler(state, args, seq)
@@ -453,11 +496,18 @@ class AgentLoop:
             "rateLimitWaitMs": run.wait_ms,
             "usage": vars(run.usage),
             "latencyMs": self._latency_ms(run),
+            "knowledge": run.knowledge,
         }
 
     async def aclose(self) -> None:
         await self._llm.aclose()
         await asyncio.to_thread(self._executor.close)  # 실행 로그 저장소는 앱이 따로 닫는다
+
+
+def _call_timeout(budget: Budget, final: bool) -> float:
+    if final:
+        return FINAL_CALL_TIMEOUT_S
+    return max(budget.limits.timeout_s - budget.elapsed_s, MIN_CALL_TIMEOUT_S)
 
 
 def _tool_message(call: ToolCall, content: dict[str, Any]) -> dict[str, Any]:
@@ -503,6 +553,12 @@ def _compact_result(message: dict[str, Any], rows: int) -> dict[str, Any]:
         return message
     if isinstance(content.get("sample"), dict):  # describe_table
         content.pop("sample")
+    elif rows == 0 and any("content" in d for d in content.get("documents") or []):
+        # search_knowledge: 이전 검색 결과는 문서 이름만 남긴다
+        content["documents"] = [
+            {"kind": d.get("kind"), "name": d.get("name")} for d in content["documents"]
+        ]
+        content["note"] = "이전 검색 결과라 본문을 생략했다."
     elif len(content.get("rows") or []) > rows:
         content["rows"] = content["rows"][:rows]
         content["note"] = f"이전 결과라 앞 {rows}행만 남겼다. step_id 로 근거 인용은 할 수 있다."

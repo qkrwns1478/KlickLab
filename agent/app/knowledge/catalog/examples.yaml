@@ -1,0 +1,123 @@
+# 질문–SQL 예시 (few-shot). 모든 SQL 은 guard 를 통과하고 실제 DB 에서 실행된다 (tests/test_knowledge.py)
+#  * evals/datasets/golden_sql.yaml 의 문항과 같은 질문을 넣지 않는다 (평가 결과 오염 방지)
+
+- name: landing_pages_top
+  question: 최근 7일 세션이 가장 많이 시작된 랜딩 페이지 10개
+  sql: |
+    SELECT page_path, sum(sessions) AS sessions
+    FROM agg_first_pages_daily
+    WHERE summary_date >= current_date - 7 AND summary_date < current_date
+    GROUP BY page_path
+    ORDER BY sessions DESC
+    LIMIT 10
+
+- name: medium_engagement_this_month
+  question: 이번 달 유입 매체별 참여율과 이탈률
+  sql: |
+    SELECT traffic_medium,
+           sum(funnel_engaged) * 100.0 / NULLIF(sum(funnel_visits), 0) AS engagement_rate,
+           sum(bounced_sessions) * 100.0 / NULLIF(sum(sessions), 0) AS bounce_rate
+    FROM agg_traffic_hourly
+    WHERE summary_date >= date_trunc('month', current_date)::date
+    GROUP BY traffic_medium
+    ORDER BY engagement_rate DESC
+
+- name: city_sessions_month_compare
+  question: 지난달 대비 이번 달 지역별 세션 수
+  sql: |
+    SELECT city,
+           sum(sessions) FILTER (WHERE summary_date < date_trunc('month', current_date)::date) AS last_month,
+           sum(sessions) FILTER (WHERE summary_date >= date_trunc('month', current_date)::date) AS this_month
+    FROM agg_user_session_hourly
+    WHERE summary_date >= (date_trunc('month', current_date) - interval '1 month')::date
+    GROUP BY city
+    ORDER BY this_month DESC NULLS LAST
+
+- name: cart_to_checkout_daily
+  question: 최근 7일 일별로 장바구니(/cart)에서 결제(/checkout)로 넘어간 세션 비율
+  sql: |
+    WITH cart AS (
+        SELECT summary_date, sum(sessions) AS cart_sessions
+        FROM agg_page_daily
+        WHERE page_path = '/cart' AND summary_date >= current_date - 7 AND summary_date < current_date
+        GROUP BY summary_date
+    ), moved AS (
+        SELECT summary_date, sum(sessions) AS moved_sessions
+        FROM agg_funnel_links_daily
+        WHERE source = '/cart' AND target = '/checkout'
+          AND summary_date >= current_date - 7 AND summary_date < current_date
+        GROUP BY summary_date
+    )
+    SELECT c.summary_date, c.cart_sessions, coalesce(m.moved_sessions, 0) AS moved_sessions,
+           coalesce(m.moved_sessions, 0) * 100.0 / NULLIF(c.cart_sessions, 0) AS transition_rate
+    FROM cart c LEFT JOIN moved m USING (summary_date)
+    ORDER BY c.summary_date
+
+- name: daily_revenue_trend
+  question: 최근 14일 일별 매출과 결제 1건당 평균 금액
+  sql: |
+    WITH revenue AS (
+        SELECT summary_date, sum(conversion_value_sum) AS revenue
+        FROM agg_traffic_hourly
+        WHERE summary_date >= current_date - 14 AND summary_date < current_date
+        GROUP BY summary_date
+    ), payments AS (
+        SELECT summary_date, sum(event_count) AS payments
+        FROM agg_event_daily
+        WHERE event_name = 'is_payment' AND summary_date >= current_date - 14 AND summary_date < current_date
+        GROUP BY summary_date
+    )
+    SELECT r.summary_date, r.revenue, p.payments, r.revenue / NULLIF(p.payments, 0) AS avg_order_value
+    FROM revenue r LEFT JOIN payments p USING (summary_date)
+    ORDER BY r.summary_date
+
+- name: browser_cart_visitors_events
+  question: 최근 3일 브라우저별로 장바구니에 상품을 담은 방문자 수
+  sql: |
+    SELECT browser, count(DISTINCT client_id) AS visitors
+    FROM events
+    WHERE event_name = 'add_to_cart'
+      AND timestamp >= current_date - 3 AND timestamp < current_date
+    GROUP BY browser
+    ORDER BY visitors DESC
+
+- name: landing_bounce_by_source
+  question: 이번 주 세션 50개 이상인 랜딩 페이지·유입 소스 조합 중 이탈률이 높은 곳
+  sql: |
+    SELECT landing_page, traffic_source, sum(sessions) AS sessions,
+           sum(bounced_sessions) * 100.0 / NULLIF(sum(sessions), 0) AS bounce_rate
+    FROM agg_traffic_hourly
+    WHERE summary_date >= date_trunc('week', current_date)::date
+    GROUP BY landing_page, traffic_source
+    HAVING sum(sessions) >= 50
+    ORDER BY bounce_rate DESC
+    LIMIT 10
+
+- name: weekly_unique_visitors
+  question: 최근 4주 주별 순 방문자 수 (주 안에서 중복 제거)
+  sql: |
+    SELECT date_trunc('week', summary_date)::date AS week_start, count(DISTINCT client_id) AS visitors
+    FROM agg_daily_users
+    WHERE summary_date >= date_trunc('week', current_date)::date - 28
+      AND summary_date < date_trunc('week', current_date)::date
+    GROUP BY week_start
+    ORDER BY week_start
+
+- name: device_checkout_completion_events
+  question: 지난주 기기 유형별로 /checkout 을 본 세션 중 /checkout/success 까지 간 비율
+  sql: |
+    WITH s AS (
+        SELECT session_id, min(device_type) AS device_type,
+               bool_or(page_path = '/checkout') AS checkout,
+               bool_or(page_path = '/checkout/success') AS success
+        FROM events
+        WHERE event_name = 'page_view'
+          AND timestamp >= date_trunc('week', current_date) - interval '7 days'
+          AND timestamp < date_trunc('week', current_date)
+        GROUP BY session_id
+    )
+    SELECT device_type, count(*) FILTER (WHERE checkout) AS checkout_sessions,
+           count(*) FILTER (WHERE checkout AND success) * 100.0
+               / NULLIF(count(*) FILTER (WHERE checkout), 0) AS completion_rate
+    FROM s
+    GROUP BY device_type

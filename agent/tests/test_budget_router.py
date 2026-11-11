@@ -34,6 +34,20 @@ def test_budget_exhausts_on_tool_calls_tokens_time_and_context():
     assert budget.exhausted()
 
 
+def test_exhausted_reason_names_the_spent_item():
+    clock = Clock()
+    budget = Budget("diagnose", clock=clock)
+    assert budget.exhausted_reason() is None
+    clock.now += LIMITS["diagnose"].timeout_s
+    assert budget.exhausted_reason() == f"시간({int(LIMITS['diagnose'].timeout_s)}초)"
+    budget = Budget("diagnose", clock=clock)
+    budget.tool_calls = LIMITS["diagnose"].max_tool_calls
+    assert budget.exhausted_reason().startswith("툴 호출")
+    budget = Budget("diagnose", clock=clock)
+    budget.timed_out = True  # 모델 호출이 시간 안에 끝나지 않음
+    assert budget.exhausted() and budget.exhausted_reason().startswith("시간")
+
+
 def test_sql_limit_disables_run_sql_without_exhausting():
     budget = Budget("lookup")
     budget.sql_runs = LIMITS["lookup"].max_sql

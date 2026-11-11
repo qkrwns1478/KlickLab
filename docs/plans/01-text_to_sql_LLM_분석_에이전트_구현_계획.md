@@ -307,9 +307,11 @@ CREATE TABLE agent_knowledge ( ... );       -- 6.4 참고
 
 ### Phase 3. 지식 베이스 (RAG)
 
-- [ ] 시맨틱 레이어 YAML 작성 (테이블, 지표, 예시, 용어)
-- [ ] 인덱서·하이브리드 검색, `search_knowledge` 툴 연결
-- [ ] 프롬프트 직접 주입 방식 vs RAG 방식 정확도·토큰 비교
+- [x] 시맨틱 레이어 YAML 작성 (테이블, 지표, 예시, 용어)
+- [x] 인덱서·하이브리드 검색, `search_knowledge` 툴 연결
+- [x] 프롬프트 직접 주입 방식 vs RAG 방식 정확도·토큰 비교 (단일 턴 기준. Tool Loop 비교는 Phase 4)
+
+- 작업 로그: [Phase 3 지식 베이스 RAG (K-EXAONE 2.5)](../logs/2026-11-11/04-에이전트_Phase3_지식_베이스_RAG.md)
 
 ### Phase 4. 평가 자동화
 

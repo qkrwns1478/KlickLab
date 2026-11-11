@@ -4,6 +4,7 @@
     .venv/Scripts/python -m evals.run_eval                      # 전체
     .venv/Scripts/python -m evals.run_eval --ids lookup-01 compare-02
     .venv/Scripts/python -m evals.run_eval --reasoning-effort low --label low
+    .venv/Scripts/python -m evals.run_eval --knowledge rag      # 스키마 요약 대신 지식 베이스 검색
 
 답변 생성 단계는 채점 대상이 아니므로 호출하지 않는다 (문항당 LLM 호출 1회).
 결과는 evals/reports/ 에 Markdown 과 JSON 으로 남긴다.
@@ -23,6 +24,7 @@ import yaml
 
 from app.agent.text_to_sql import KST, TextToSQL, today_kst
 from app.config import Settings
+from app.knowledge.context import close_knowledge_context, get_knowledge_context
 from app.llm import LLMError, build_llm_client
 from app.sql.executor import SQLExecutionError, build_executor
 from app.sql.guard import SQLRejected, guard
@@ -47,6 +49,8 @@ class ItemResult:
     reasoning_tokens: int = 0
     gold_rows: int = 0
     pred_rows: int | None = None
+    knowledge: list[str] = field(default_factory=list)  # rag 모드에서 프롬프트에 넣은 문서
+    retrieval_ms: int = 0
 
 
 @dataclass
@@ -55,6 +59,8 @@ class Report:
     reasoning_effort: str
     label: str
     started_at: str
+    knowledge_mode: str = "prompt"
+    knowledge_quota: str | None = None
     items: list[ItemResult] = field(default_factory=list)
 
     def summary(self) -> dict[str, Any]:
@@ -86,6 +92,7 @@ class Report:
             "prompt_tokens_avg": round(sum(i.prompt_tokens for i in self.items) / n),
             "completion_tokens_avg": round(sum(i.completion_tokens for i in self.items) / n),
             "reasoning_tokens_avg": round(sum(i.reasoning_tokens for i in self.items) / n),
+            "retrieval_ms_avg": round(sum(i.retrieval_ms for i in self.items) / n),
         }
 
 
@@ -103,12 +110,16 @@ async def evaluate(
             "max_tokens": settings.llm_sql_max_tokens,
             "reasoning_effort": reasoning_effort,
         },
+        knowledge=get_knowledge_context(settings),
     )
+    rag = settings.knowledge_mode == "rag"
     report = Report(
         model=llm.model,
         reasoning_effort=reasoning_effort,
         label=label,
         started_at=datetime.now(KST).isoformat(timespec="seconds"),
+        knowledge_mode=settings.knowledge_mode,
+        knowledge_quota=settings.knowledge_context_quota if rag else None,
     )
     today = today_kst()
     try:
@@ -120,6 +131,7 @@ async def evaluate(
             )
     finally:
         await pipeline.aclose()
+        close_knowledge_context()
     return report
 
 
@@ -140,6 +152,8 @@ async def _evaluate_one(item, pipeline: TextToSQL, executor, sdk_key, today) -> 
     out.prompt_tokens = draft.usage.prompt_tokens
     out.completion_tokens = draft.usage.completion_tokens
     out.reasoning_tokens = draft.usage.reasoning_tokens
+    out.knowledge = draft.knowledge
+    out.retrieval_ms = draft.retrieval_ms
     if draft.sql is None:
         out.status = "no_sql"
         out.reason = draft.no_sql_reason or ("출력 잘림" if draft.truncated else "SQL 없음")
@@ -168,7 +182,8 @@ def write_report(report: Report, out_dir: Path) -> Path:
     stamp = datetime.fromisoformat(report.started_at).strftime("%Y%m%d-%H%M")
     suffix = f"-{report.label}" if report.label else ""
     model = report.model.replace(".", "_").replace("/", "_")  # 파일명에 점이 여러 개 생기지 않도록
-    base = out_dir / f"{stamp}-golden_sql-{model}-{report.reasoning_effort}{suffix}"
+    mode = "-rag" if report.knowledge_mode == "rag" else ""
+    base = out_dir / f"{stamp}-golden_sql-{model}-{report.reasoning_effort}{mode}{suffix}"
 
     summary = report.summary()
     payload = {**{k: v for k, v in asdict(report).items() if k != "items"}, "summary": summary}
@@ -181,6 +196,8 @@ def write_report(report: Report, out_dir: Path) -> Path:
         f"# golden SQL 평가 — {report.model} (reasoning_effort={report.reasoning_effort})",
         "",
         f"- 실행: {report.started_at}" + (f" / {report.label}" if report.label else ""),
+        f"- 스키마 컨텍스트: {report.knowledge_mode}"
+        + (f" (할당량 {report.knowledge_quota})" if report.knowledge_quota else ""),
         f"- 실행 정확도: **{summary['execution_accuracy']}%** "
         f"({summary['statuses'].get('match', 0)}/{summary['total']})",
         "- 난이도별: "
@@ -204,6 +221,8 @@ def write_report(report: Report, out_dir: Path) -> Path:
             lines += [f"### {i.id} — {i.status}", "", f"질문: {i.question}", ""]
             if i.reason:
                 lines += [f"사유: {i.reason}", ""]
+            if i.knowledge:
+                lines += [f"넣은 문서: {', '.join(i.knowledge)}", ""]
             if i.sql:
                 lines += ["```sql", i.sql, "```", ""]
     md = base.with_name(base.name + ".md")
@@ -220,6 +239,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--label", default="")
     parser.add_argument("--provider", help="LLM_PROVIDER 덮어쓰기 (exaone / groq)")
     parser.add_argument("--model", help="공급자 모델 id 덮어쓰기")
+    parser.add_argument("--knowledge", choices=["prompt", "rag"], help="KNOWLEDGE_MODE 덮어쓰기")
+    parser.add_argument("--quota", help="KNOWLEDGE_CONTEXT_QUOTA 덮어쓰기")
     parser.add_argument("--out-dir", type=Path, default=ROOT / "reports")
     args = parser.parse_args(argv)
 
@@ -228,6 +249,10 @@ def main(argv: list[str] | None = None) -> int:
         settings.llm_provider = args.provider
     if args.model:
         setattr(settings, f"{settings.llm_provider}_model", args.model)
+    if args.knowledge:
+        settings.knowledge_mode = args.knowledge
+    if args.quota:
+        settings.knowledge_context_quota = args.quota
     items = yaml.safe_load(args.dataset.read_text(encoding="utf-8"))
     if args.ids:
         items = [i for i in items if i["id"] in set(args.ids)]

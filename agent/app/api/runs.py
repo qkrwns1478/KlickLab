@@ -20,6 +20,7 @@ from app.agent.loop import AgentEvent, AgentLoop
 from app.agent.store import PostgresRunStore, build_run_store
 from app.auth import AuthUser, current_user
 from app.config import Settings, get_settings
+from app.knowledge.context import get_knowledge_context
 from app.llm import LLMError, build_llm_client
 from app.sql.executor import build_executor
 
@@ -63,6 +64,7 @@ def build_agent(settings: Settings, store: PostgresRunStore) -> AgentLoop:
         max_prompt_tokens=settings.agent_max_prompt_tokens,
         max_rows=settings.sql_max_rows,
         model_rows=settings.agent_tool_result_rows,
+        knowledge=get_knowledge_context(settings),
     )
 
 

@@ -184,3 +184,29 @@ async def test_does_not_retry_daily_limit():
         await _client(handler).chat([{"role": "user", "content": "q"}])
     assert e.value.status == 429
     assert len(attempts) == 1
+
+
+async def test_timeout_is_not_retried_and_reports_408():
+    attempts = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        attempts.append(1)
+        raise httpx.ReadTimeout("느린 응답", request=request)
+
+    with pytest.raises(LLMError) as info:
+        await _client(handler, max_retries=3).chat([{"role": "user", "content": "q"}], timeout=5)
+    assert len(attempts) == 1
+    assert info.value.status == 408
+
+
+async def test_per_call_timeout_overrides_default():
+    seen = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(request.extensions["timeout"]["read"])
+        return httpx.Response(200, json=OK)
+
+    client = _client(handler)
+    await client.chat([{"role": "user", "content": "q"}])
+    await client.chat([{"role": "user", "content": "q"}], timeout=7)
+    assert seen[1] == 7 and seen[0] != 7

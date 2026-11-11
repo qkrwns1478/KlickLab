@@ -100,3 +100,21 @@ async def test_ask_out_of_scope():
     assert result.status == "out_of_scope"
     assert result.answer == "분석 데이터와 무관한 질문입니다."
     assert executor.executed == []
+
+
+async def test_generate_sql_uses_knowledge_context_in_rag_mode():
+    from app.knowledge.context import SchemaContext
+    from app.knowledge.retriever import Hit
+
+    class Knowledge:
+        async def aschema_for(self, question):
+            hits = [Hit("metric", "bounce_rate", "이탈률", "본문", 0.1)]
+            return SchemaContext("## 참고 문서\n이탈률 정의", hits, elapsed_ms=7)
+
+    llm = FakeLLM(["```sql\nSELECT 1\n```"])
+    pipeline = TextToSQL(llm, FakeExecutor(), knowledge=Knowledge())  # type: ignore[arg-type]
+    draft = await pipeline.generate_sql("이탈률은?")
+
+    system = llm.calls[0][0]["content"]
+    assert "이탈률 정의" in system and "## 일 단위 집계" not in system
+    assert draft.knowledge == ["metric/bounce_rate"] and draft.retrieval_ms == 7

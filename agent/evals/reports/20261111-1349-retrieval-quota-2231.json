@@ -1,0 +1,1381 @@
+{
+  "started_at": "2026-11-11T13:49:21+09:00",
+  "quota": "table:2,metric:2,glossary:3,example:1",
+  "modes": [
+    {
+      "mode": "hybrid",
+      "summary": {
+        "recall": 95.0,
+        "all_found": 17,
+        "by_kind": {
+          "glossary": 100.0,
+          "metric": 93.8,
+          "table": 90.0
+        },
+        "context_chars_avg": 3294,
+        "latency_ms_avg": 301
+      },
+      "items": [
+        {
+          "id": "lookup-01",
+          "expected": [
+            "glossary/period_day",
+            "metric/unique_visitors",
+            "table/agg_daily_users"
+          ],
+          "retrieved": [
+            "table/agg_daily_users",
+            "table/agg_event_daily",
+            "metric/unique_visitors",
+            "metric/new_returning_visitors",
+            "glossary/period_day",
+            "glossary/hour_of_day",
+            "glossary/traffic_channels",
+            "example/browser_cart_visitors_events"
+          ],
+          "missing": [],
+          "recall": 1.0,
+          "context_chars": 2630
+        },
+        {
+          "id": "lookup-02",
+          "expected": [
+            "glossary/period_recent_days",
+            "metric/page_views",
+            "table/agg_page_daily"
+          ],
+          "retrieved": [
+            "table/daily_metrics",
+            "table/agg_page_daily",
+            "metric/page_views",
+            "metric/avg_time_on_page",
+            "glossary/period_recent_days",
+            "glossary/pages",
+            "glossary/period_week",
+            "example/cart_to_checkout_daily"
+          ],
+          "missing": [],
+          "recall": 1.0,
+          "context_chars": 3308
+        },
+        {
+          "id": "lookup-03",
+          "expected": [
+            "glossary/event_names",
+            "glossary/period_recent_days",
+            "table/agg_event_daily"
+          ],
+          "retrieved": [
+            "table/agg_event_daily",
+            "table/agg_event_page_daily",
+            "metric/conversions",
+            "metric/payments",
+            "glossary/period_recent_days",
+            "glossary/event_names",
+            "glossary/demographics",
+            "example/browser_cart_visitors_events"
+          ],
+          "missing": [],
+          "recall": 1.0,
+          "context_chars": 2242
+        },
+        {
+          "id": "lookup-04",
+          "expected": [
+            "glossary/period_week",
+            "metric/page_views",
+            "table/agg_page_daily"
+          ],
+          "retrieved": [
+            "table/agg_page_daily",
+            "table/daily_top_elements",
+            "metric/page_views",
+            "metric/avg_time_on_page",
+            "glossary/pages",
+            "glossary/period_week",
+            "glossary/event_names",
+            "example/landing_pages_top"
+          ],
+          "missing": [],
+          "recall": 1.0,
+          "context_chars": 2651
+        },
+        {
+          "id": "lookup-05",
+          "expected": [
+            "glossary/period_week",
+            "glossary/traffic_channels",
+            "metric/sessions",
+            "table/agg_traffic_hourly"
+          ],
+          "retrieved": [
+            "table/agg_traffic_hourly",
+            "table/agg_funnel_links_daily",
+            "metric/sessions",
+            "metric/bounce_rate",
+            "glossary/traffic_channels",
+            "glossary/period_week",
+            "glossary/data_rules",
+            "example/landing_bounce_by_source"
+          ],
+          "missing": [],
+          "recall": 1.0,
+          "context_chars": 3561
+        },
+        {
+          "id": "lookup-06",
+          "expected": [
+            "glossary/period_week",
+            "glossary/traffic_channels",
+            "metric/bounce_rate",
+            "table/agg_traffic_hourly"
+          ],
+          "retrieved": [
+            "table/agg_traffic_hourly",
+            "table/daily_page_stats",
+            "metric/bounce_rate",
+            "metric/engagement_rate",
+            "glossary/traffic_channels",
+            "glossary/period_week",
+            "glossary/campaigns",
+            "example/landing_bounce_by_source"
+          ],
+          "missing": [],
+          "recall": 1.0,
+          "context_chars": 3730
+        },
+        {
+          "id": "lookup-07",
+          "expected": [
+            "glossary/devices",
+            "glossary/period_recent_days",
+            "metric/sessions",
+            "table/agg_user_session_hourly"
+          ],
+          "retrieved": [
+            "table/agg_user_session_hourly",
+            "table/daily_metrics",
+            "metric/sessions",
+            "metric/payment_session_rate",
+            "glossary/period_recent_days",
+            "glossary/devices",
+            "glossary/data_rules",
+            "example/device_checkout_completion_events"
+          ],
+          "missing": [],
+          "recall": 1.0,
+          "context_chars": 3855
+        },
+        {
+          "id": "lookup-08",
+          "expected": [
+            "glossary/period_month",
+            "metric/payments",
+            "table/agg_event_daily"
+          ],
+          "retrieved": [
+            "table/agg_event_daily",
+            "table/agg_funnel_links_daily",
+            "metric/payments",
+            "metric/revenue",
+            "glossary/period_month",
+            "glossary/event_names",
+            "glossary/pages",
+            "example/cart_to_checkout_daily"
+          ],
+          "missing": [],
+          "recall": 1.0,
+          "context_chars": 2876
+        },
+        {
+          "id": "lookup-09",
+          "expected": [
+            "glossary/demographics",
+            "glossary/period_day",
+            "table/agg_user_session_daily"
+          ],
+          "retrieved": [
+            "table/agg_user_session_daily",
+            "table/agg_user_session_hourly",
+            "metric/unique_visitors",
+            "metric/new_returning_visitors",
+            "glossary/demographics",
+            "glossary/period_day",
+            "glossary/data_rules",
+            "example/browser_cart_visitors_events"
+          ],
+          "missing": [],
+          "recall": 1.0,
+          "context_chars": 3200
+        },
+        {
+          "id": "lookup-10",
+          "expected": [
+            "glossary/period_recent_days",
+            "metric/avg_session_duration",
+            "table/agg_user_session_daily"
+          ],
+          "retrieved": [
+            "table/agg_user_session_daily",
+            "table/daily_metrics",
+            "metric/avg_session_duration",
+            "metric/sessions",
+            "glossary/period_recent_days",
+            "glossary/demographics",
+            "glossary/data_rules",
+            "example/cart_to_checkout_daily"
+          ],
+          "missing": [],
+          "recall": 1.0,
+          "context_chars": 3352
+        },
+        {
+          "id": "lookup-11",
+          "expected": [
+            "glossary/hour_of_day",
+            "glossary/period_week",
+            "metric/sessions",
+            "table/agg_traffic_hourly"
+          ],
+          "retrieved": [
+            "table/agg_user_session_hourly",
+            "table/agg_traffic_hourly",
+            "metric/sessions",
+            "metric/avg_session_duration",
+            "glossary/hour_of_day",
+            "glossary/period_week",
+            "glossary/data_rules",
+            "example/cart_to_checkout_daily"
+          ],
+          "missing": [],
+          "recall": 1.0,
+          "context_chars": 4149
+        },
+        {
+          "id": "lookup-12",
+          "expected": [
+            "glossary/campaigns",
+            "glossary/period_recent_days",
+            "metric/conversions",
+            "table/agg_traffic_hourly"
+          ],
+          "retrieved": [
+            "table/agg_traffic_hourly",
+            "table/agg_funnel_links_daily",
+            "metric/sessions",
+            "metric/conversions",
+            "glossary/campaigns",
+            "glossary/traffic_channels",
+            "glossary/period_recent_days",
+            "example/cart_to_checkout_daily"
+          ],
+          "missing": [],
+          "recall": 1.0,
+          "context_chars": 3610
+        },
+        {
+          "id": "lookup-13",
+          "expected": [
+            "glossary/period_recent_days",
+            "metric/avg_time_on_page",
+            "table/agg_page_daily"
+          ],
+          "retrieved": [
+            "table/daily_page_stats",
+            "table/agg_page_daily",
+            "metric/avg_session_duration",
+            "metric/page_views",
+            "glossary/period_recent_days",
+            "glossary/pages",
+            "glossary/data_rules",
+            "example/landing_bounce_by_source"
+          ],
+          "missing": [
+            "metric/avg_time_on_page"
+          ],
+          "recall": 0.6666666666666666,
+          "context_chars": 2851
+        },
+        {
+          "id": "lookup-14",
+          "expected": [
+            "glossary/pages",
+            "glossary/period_day",
+            "table/events"
+          ],
+          "retrieved": [
+            "table/agg_page_daily",
+            "table/agg_user_session_hourly",
+            "metric/sessions",
+            "metric/page_transition_rate",
+            "glossary/pages",
+            "glossary/period_day",
+            "glossary/devices",
+            "example/device_checkout_completion_events"
+          ],
+          "missing": [
+            "table/events"
+          ],
+          "recall": 0.6666666666666666,
+          "context_chars": 3936
+        },
+        {
+          "id": "compare-01",
+          "expected": [
+            "glossary/period_week",
+            "metric/sessions",
+            "table/agg_traffic_hourly"
+          ],
+          "retrieved": [
+            "table/agg_traffic_hourly",
+            "table/agg_funnel_links_daily",
+            "metric/sessions",
+            "metric/page_transition_rate",
+            "glossary/period_week",
+            "glossary/traffic_channels",
+            "glossary/data_rules",
+            "example/landing_bounce_by_source"
+          ],
+          "missing": [],
+          "recall": 1.0,
+          "context_chars": 3713
+        },
+        {
+          "id": "compare-02",
+          "expected": [
+            "glossary/period_week",
+            "metric/conversion_rate",
+            "table/agg_traffic_hourly"
+          ],
+          "retrieved": [
+            "table/agg_traffic_hourly",
+            "table/daily_top_elements",
+            "metric/conversion_rate",
+            "metric/sessions",
+            "glossary/traffic_channels",
+            "glossary/period_week",
+            "glossary/data_rules",
+            "example/landing_bounce_by_source"
+          ],
+          "missing": [],
+          "recall": 1.0,
+          "context_chars": 3761
+        },
+        {
+          "id": "compare-03",
+          "expected": [
+            "glossary/period_recent_days",
+            "glossary/weekday",
+            "metric/sessions",
+            "table/agg_user_session_daily"
+          ],
+          "retrieved": [
+            "table/agg_user_session_daily",
+            "table/daily_metrics",
+            "metric/sessions",
+            "metric/avg_session_duration",
+            "glossary/weekday",
+            "glossary/hour_of_day",
+            "glossary/period_recent_days",
+            "example/cart_to_checkout_daily"
+          ],
+          "missing": [],
+          "recall": 1.0,
+          "context_chars": 3134
+        },
+        {
+          "id": "compare-04",
+          "expected": [
+            "glossary/period_recent_days",
+            "metric/payment_session_rate",
+            "table/events"
+          ],
+          "retrieved": [
+            "table/agg_funnel_links_daily",
+            "table/agg_event_daily",
+            "metric/payment_session_rate",
+            "metric/conversion_rate",
+            "glossary/event_names",
+            "glossary/period_recent_days",
+            "glossary/devices",
+            "example/cart_to_checkout_daily"
+          ],
+          "missing": [
+            "table/events"
+          ],
+          "recall": 0.6666666666666666,
+          "context_chars": 3162
+        },
+        {
+          "id": "compare-05",
+          "expected": [
+            "glossary/period_recent_days",
+            "metric/unique_visitors",
+            "table/agg_daily_users"
+          ],
+          "retrieved": [
+            "table/agg_daily_users",
+            "table/daily_metrics",
+            "metric/unique_visitors",
+            "metric/new_returning_visitors",
+            "glossary/period_recent_days",
+            "glossary/period_week",
+            "glossary/weekday",
+            "example/cart_to_checkout_daily"
+          ],
+          "missing": [],
+          "recall": 1.0,
+          "context_chars": 3352
+        },
+        {
+          "id": "compare-06",
+          "expected": [
+            "glossary/event_names",
+            "glossary/period_week",
+            "table/agg_event_daily"
+          ],
+          "retrieved": [
+            "table/agg_event_daily",
+            "table/agg_event_page_daily",
+            "metric/conversions",
+            "metric/payments",
+            "glossary/period_week",
+            "glossary/event_names",
+            "glossary/period_month",
+            "example/device_checkout_completion_events"
+          ],
+          "missing": [],
+          "recall": 1.0,
+          "context_chars": 2801
+        }
+      ]
+    },
+    {
+      "mode": "vector",
+      "summary": {
+        "recall": 81.2,
+        "all_found": 9,
+        "by_kind": {
+          "glossary": 73.3,
+          "metric": 87.5,
+          "table": 85.0
+        },
+        "context_chars_avg": 3254,
+        "latency_ms_avg": 218
+      },
+      "items": [
+        {
+          "id": "lookup-01",
+          "expected": [
+            "glossary/period_day",
+            "metric/unique_visitors",
+            "table/agg_daily_users"
+          ],
+          "retrieved": [
+            "table/agg_daily_users",
+            "table/daily_metrics",
+            "metric/unique_visitors",
+            "metric/new_returning_visitors",
+            "glossary/period_day",
+            "glossary/hour_of_day",
+            "glossary/traffic_channels",
+            "example/weekly_unique_visitors"
+          ],
+          "missing": [],
+          "recall": 1.0,
+          "context_chars": 2836
+        },
+        {
+          "id": "lookup-02",
+          "expected": [
+            "glossary/period_recent_days",
+            "metric/page_views",
+            "table/agg_page_daily"
+          ],
+          "retrieved": [
+            "table/agg_page_daily",
+            "table/daily_page_stats",
+            "metric/avg_time_on_page",
+            "metric/page_views",
+            "glossary/period_week",
+            "glossary/period_recent_days",
+            "glossary/weekday",
+            "example/landing_pages_top"
+          ],
+          "missing": [],
+          "recall": 1.0,
+          "context_chars": 2610
+        },
+        {
+          "id": "lookup-03",
+          "expected": [
+            "glossary/event_names",
+            "glossary/period_recent_days",
+            "table/agg_event_daily"
+          ],
+          "retrieved": [
+            "table/agg_event_daily",
+            "table/agg_event_page_daily",
+            "metric/signups",
+            "metric/payments",
+            "glossary/period_recent_days",
+            "glossary/period_day",
+            "glossary/event_names",
+            "example/device_checkout_completion_events"
+          ],
+          "missing": [],
+          "recall": 1.0,
+          "context_chars": 2707
+        },
+        {
+          "id": "lookup-04",
+          "expected": [
+            "glossary/period_week",
+            "metric/page_views",
+            "table/agg_page_daily"
+          ],
+          "retrieved": [
+            "table/agg_page_daily",
+            "table/daily_page_stats",
+            "metric/page_views",
+            "metric/avg_time_on_page",
+            "glossary/pages",
+            "glossary/period_week",
+            "glossary/campaigns",
+            "example/landing_pages_top"
+          ],
+          "missing": [],
+          "recall": 1.0,
+          "context_chars": 2675
+        },
+        {
+          "id": "lookup-05",
+          "expected": [
+            "glossary/period_week",
+            "glossary/traffic_channels",
+            "metric/sessions",
+            "table/agg_traffic_hourly"
+          ],
+          "retrieved": [
+            "table/agg_traffic_hourly",
+            "table/agg_funnel_links_daily",
+            "metric/sessions",
+            "metric/unique_visitors",
+            "glossary/traffic_channels",
+            "glossary/hour_of_day",
+            "glossary/campaigns",
+            "example/landing_bounce_by_source"
+          ],
+          "missing": [
+            "glossary/period_week"
+          ],
+          "recall": 0.75,
+          "context_chars": 3327
+        },
+        {
+          "id": "lookup-06",
+          "expected": [
+            "glossary/period_week",
+            "glossary/traffic_channels",
+            "metric/bounce_rate",
+            "table/agg_traffic_hourly"
+          ],
+          "retrieved": [
+            "table/agg_traffic_hourly",
+            "table/daily_page_stats",
+            "metric/bounce_rate",
+            "metric/engagement_rate",
+            "glossary/traffic_channels",
+            "glossary/campaigns",
+            "glossary/weekday",
+            "example/landing_bounce_by_source"
+          ],
+          "missing": [
+            "glossary/period_week"
+          ],
+          "recall": 0.75,
+          "context_chars": 3483
+        },
+        {
+          "id": "lookup-07",
+          "expected": [
+            "glossary/devices",
+            "glossary/period_recent_days",
+            "metric/sessions",
+            "table/agg_user_session_hourly"
+          ],
+          "retrieved": [
+            "table/agg_user_session_hourly",
+            "table/agg_user_session_daily",
+            "metric/sessions",
+            "metric/avg_session_duration",
+            "glossary/hour_of_day",
+            "glossary/data_rules",
+            "glossary/devices",
+            "example/device_checkout_completion_events"
+          ],
+          "missing": [
+            "glossary/period_recent_days"
+          ],
+          "recall": 0.75,
+          "context_chars": 3612
+        },
+        {
+          "id": "lookup-08",
+          "expected": [
+            "glossary/period_month",
+            "metric/payments",
+            "table/agg_event_daily"
+          ],
+          "retrieved": [
+            "table/agg_funnel_links_daily",
+            "table/agg_event_daily",
+            "metric/payments",
+            "metric/payment_session_rate",
+            "glossary/period_month",
+            "glossary/pages",
+            "glossary/event_names",
+            "example/daily_revenue_trend"
+          ],
+          "missing": [],
+          "recall": 1.0,
+          "context_chars": 2844
+        },
+        {
+          "id": "lookup-09",
+          "expected": [
+            "glossary/demographics",
+            "glossary/period_day",
+            "table/agg_user_session_daily"
+          ],
+          "retrieved": [
+            "table/agg_user_session_daily",
+            "table/agg_user_session_hourly",
+            "metric/unique_visitors",
+            "metric/new_returning_visitors",
+            "glossary/demographics",
+            "glossary/hour_of_day",
+            "glossary/devices",
+            "example/browser_cart_visitors_events"
+          ],
+          "missing": [
+            "glossary/period_day"
+          ],
+          "recall": 0.6666666666666666,
+          "context_chars": 3267
+        },
+        {
+          "id": "lookup-10",
+          "expected": [
+            "glossary/period_recent_days",
+            "metric/avg_session_duration",
+            "table/agg_user_session_daily"
+          ],
+          "retrieved": [
+            "table/agg_user_session_daily",
+            "table/agg_user_session_hourly",
+            "metric/avg_session_duration",
+            "metric/sessions",
+            "glossary/hour_of_day",
+            "glossary/data_rules",
+            "glossary/demographics",
+            "example/cart_to_checkout_daily"
+          ],
+          "missing": [
+            "glossary/period_recent_days"
+          ],
+          "recall": 0.6666666666666666,
+          "context_chars": 3551
+        },
+        {
+          "id": "lookup-11",
+          "expected": [
+            "glossary/hour_of_day",
+            "glossary/period_week",
+            "metric/sessions",
+            "table/agg_traffic_hourly"
+          ],
+          "retrieved": [
+            "table/agg_user_session_hourly",
+            "table/agg_user_session_daily",
+            "metric/sessions",
+            "metric/avg_session_duration",
+            "glossary/hour_of_day",
+            "glossary/data_rules",
+            "glossary/period_week",
+            "example/cart_to_checkout_daily"
+          ],
+          "missing": [
+            "table/agg_traffic_hourly"
+          ],
+          "recall": 0.75,
+          "context_chars": 3697
+        },
+        {
+          "id": "lookup-12",
+          "expected": [
+            "glossary/campaigns",
+            "glossary/period_recent_days",
+            "metric/conversions",
+            "table/agg_traffic_hourly"
+          ],
+          "retrieved": [
+            "table/agg_traffic_hourly",
+            "table/agg_funnel_links_daily",
+            "metric/page_transition_rate",
+            "metric/conversion_rate",
+            "glossary/campaigns",
+            "glossary/traffic_channels",
+            "glossary/event_names",
+            "example/cart_to_checkout_daily"
+          ],
+          "missing": [
+            "glossary/period_recent_days",
+            "metric/conversions"
+          ],
+          "recall": 0.5,
+          "context_chars": 3786
+        },
+        {
+          "id": "lookup-13",
+          "expected": [
+            "glossary/period_recent_days",
+            "metric/avg_time_on_page",
+            "table/agg_page_daily"
+          ],
+          "retrieved": [
+            "table/agg_page_daily",
+            "table/daily_page_stats",
+            "metric/avg_time_on_page",
+            "metric/engagement_rate",
+            "glossary/pages",
+            "glossary/data_rules",
+            "glossary/period_recent_days",
+            "example/landing_bounce_by_source"
+          ],
+          "missing": [],
+          "recall": 1.0,
+          "context_chars": 2985
+        },
+        {
+          "id": "lookup-14",
+          "expected": [
+            "glossary/pages",
+            "glossary/period_day",
+            "table/events"
+          ],
+          "retrieved": [
+            "table/agg_page_daily",
+            "table/agg_funnel_links_daily",
+            "metric/page_transition_rate",
+            "metric/unique_visitors",
+            "glossary/pages",
+            "glossary/event_names",
+            "glossary/devices",
+            "example/device_checkout_completion_events"
+          ],
+          "missing": [
+            "glossary/period_day",
+            "table/events"
+          ],
+          "recall": 0.3333333333333333,
+          "context_chars": 3471
+        },
+        {
+          "id": "compare-01",
+          "expected": [
+            "glossary/period_week",
+            "metric/sessions",
+            "table/agg_traffic_hourly"
+          ],
+          "retrieved": [
+            "table/agg_traffic_hourly",
+            "table/agg_funnel_links_daily",
+            "metric/sessions",
+            "metric/page_transition_rate",
+            "glossary/period_week",
+            "glossary/traffic_channels",
+            "glossary/hour_of_day",
+            "example/landing_bounce_by_source"
+          ],
+          "missing": [],
+          "recall": 1.0,
+          "context_chars": 3596
+        },
+        {
+          "id": "compare-02",
+          "expected": [
+            "glossary/period_week",
+            "metric/conversion_rate",
+            "table/agg_traffic_hourly"
+          ],
+          "retrieved": [
+            "table/agg_traffic_hourly",
+            "table/agg_funnel_links_daily",
+            "metric/payment_session_rate",
+            "metric/page_transition_rate",
+            "glossary/traffic_channels",
+            "glossary/campaigns",
+            "glossary/period_week",
+            "example/cart_to_checkout_daily"
+          ],
+          "missing": [
+            "metric/conversion_rate"
+          ],
+          "recall": 0.6666666666666666,
+          "context_chars": 4074
+        },
+        {
+          "id": "compare-03",
+          "expected": [
+            "glossary/period_recent_days",
+            "glossary/weekday",
+            "metric/sessions",
+            "table/agg_user_session_daily"
+          ],
+          "retrieved": [
+            "table/agg_user_session_daily",
+            "table/agg_user_session_hourly",
+            "metric/unique_visitors",
+            "metric/sessions",
+            "glossary/weekday",
+            "glossary/hour_of_day",
+            "glossary/data_rules",
+            "example/cart_to_checkout_daily"
+          ],
+          "missing": [
+            "glossary/period_recent_days"
+          ],
+          "recall": 0.75,
+          "context_chars": 3637
+        },
+        {
+          "id": "compare-04",
+          "expected": [
+            "glossary/period_recent_days",
+            "metric/payment_session_rate",
+            "table/events"
+          ],
+          "retrieved": [
+            "table/agg_funnel_links_daily",
+            "table/conversion_events",
+            "metric/payment_session_rate",
+            "metric/page_transition_rate",
+            "glossary/event_names",
+            "glossary/pages",
+            "glossary/period_recent_days",
+            "example/cart_to_checkout_daily"
+          ],
+          "missing": [
+            "table/events"
+          ],
+          "recall": 0.6666666666666666,
+          "context_chars": 3271
+        },
+        {
+          "id": "compare-05",
+          "expected": [
+            "glossary/period_recent_days",
+            "metric/unique_visitors",
+            "table/agg_daily_users"
+          ],
+          "retrieved": [
+            "table/agg_daily_users",
+            "table/daily_metrics",
+            "metric/unique_visitors",
+            "metric/new_returning_visitors",
+            "glossary/period_week",
+            "glossary/period_recent_days",
+            "glossary/weekday",
+            "example/weekly_unique_visitors"
+          ],
+          "missing": [],
+          "recall": 1.0,
+          "context_chars": 2885
+        },
+        {
+          "id": "compare-06",
+          "expected": [
+            "glossary/event_names",
+            "glossary/period_week",
+            "table/agg_event_daily"
+          ],
+          "retrieved": [
+            "table/agg_event_daily",
+            "table/agg_event_page_daily",
+            "metric/conversions",
+            "metric/signups",
+            "glossary/period_week",
+            "glossary/period_day",
+            "glossary/event_names",
+            "example/device_checkout_completion_events"
+          ],
+          "missing": [],
+          "recall": 1.0,
+          "context_chars": 2763
+        }
+      ]
+    },
+    {
+      "mode": "keyword",
+      "summary": {
+        "recall": 82.5,
+        "all_found": 10,
+        "by_kind": {
+          "glossary": 93.3,
+          "metric": 56.2,
+          "table": 90.0
+        },
+        "context_chars_avg": 3469,
+        "latency_ms_avg": 66
+      },
+      "items": [
+        {
+          "id": "lookup-01",
+          "expected": [
+            "glossary/period_day",
+            "metric/unique_visitors",
+            "table/agg_daily_users"
+          ],
+          "retrieved": [
+            "table/agg_daily_users",
+            "table/agg_event_daily",
+            "metric/new_returning_visitors",
+            "metric/conversion_rate",
+            "glossary/period_day",
+            "example/browser_cart_visitors_events"
+          ],
+          "missing": [
+            "metric/unique_visitors"
+          ],
+          "recall": 0.6666666666666666,
+          "context_chars": 1776
+        },
+        {
+          "id": "lookup-02",
+          "expected": [
+            "glossary/period_recent_days",
+            "metric/page_views",
+            "table/agg_page_daily"
+          ],
+          "retrieved": [
+            "table/daily_metrics",
+            "table/agg_daily_users",
+            "metric/new_returning_visitors",
+            "metric/avg_time_on_page",
+            "glossary/period_recent_days",
+            "glossary/period_week",
+            "glossary/weekday",
+            "example/cart_to_checkout_daily"
+          ],
+          "missing": [
+            "metric/page_views",
+            "table/agg_page_daily"
+          ],
+          "recall": 0.3333333333333333,
+          "context_chars": 3118
+        },
+        {
+          "id": "lookup-03",
+          "expected": [
+            "glossary/event_names",
+            "glossary/period_recent_days",
+            "table/agg_event_daily"
+          ],
+          "retrieved": [
+            "table/agg_sankey_paths_daily",
+            "table/agg_event_daily",
+            "metric/conversions",
+            "metric/conversion_rate",
+            "glossary/period_recent_days",
+            "glossary/demographics",
+            "glossary/data_rules",
+            "example/browser_cart_visitors_events"
+          ],
+          "missing": [
+            "glossary/event_names"
+          ],
+          "recall": 0.6666666666666666,
+          "context_chars": 2423
+        },
+        {
+          "id": "lookup-04",
+          "expected": [
+            "glossary/period_week",
+            "metric/page_views",
+            "table/agg_page_daily"
+          ],
+          "retrieved": [
+            "table/daily_top_elements",
+            "table/agg_page_daily",
+            "metric/avg_time_on_page",
+            "metric/exit_rate",
+            "glossary/period_week",
+            "glossary/event_names",
+            "glossary/pages",
+            "example/landing_pages_top"
+          ],
+          "missing": [
+            "metric/page_views"
+          ],
+          "recall": 0.6666666666666666,
+          "context_chars": 2699
+        },
+        {
+          "id": "lookup-05",
+          "expected": [
+            "glossary/period_week",
+            "glossary/traffic_channels",
+            "metric/sessions",
+            "table/agg_traffic_hourly"
+          ],
+          "retrieved": [
+            "table/agg_traffic_hourly",
+            "table/events",
+            "metric/bounce_rate",
+            "metric/sessions",
+            "glossary/traffic_channels",
+            "glossary/data_rules",
+            "glossary/period_week",
+            "example/landing_bounce_by_source"
+          ],
+          "missing": [],
+          "recall": 1.0,
+          "context_chars": 4530
+        },
+        {
+          "id": "lookup-06",
+          "expected": [
+            "glossary/period_week",
+            "glossary/traffic_channels",
+            "metric/bounce_rate",
+            "table/agg_traffic_hourly"
+          ],
+          "retrieved": [
+            "table/agg_traffic_hourly",
+            "table/events",
+            "metric/bounce_rate",
+            "metric/sessions",
+            "glossary/traffic_channels",
+            "glossary/period_week",
+            "glossary/data_rules",
+            "example/landing_bounce_by_source"
+          ],
+          "missing": [],
+          "recall": 1.0,
+          "context_chars": 4530
+        },
+        {
+          "id": "lookup-07",
+          "expected": [
+            "glossary/devices",
+            "glossary/period_recent_days",
+            "metric/sessions",
+            "table/agg_user_session_hourly"
+          ],
+          "retrieved": [
+            "table/agg_user_session_hourly",
+            "table/daily_metrics",
+            "metric/sessions",
+            "metric/new_returning_visitors",
+            "glossary/period_recent_days",
+            "glossary/data_rules",
+            "glossary/devices",
+            "example/daily_revenue_trend"
+          ],
+          "missing": [],
+          "recall": 1.0,
+          "context_chars": 3680
+        },
+        {
+          "id": "lookup-08",
+          "expected": [
+            "glossary/period_month",
+            "metric/payments",
+            "table/agg_event_daily"
+          ],
+          "retrieved": [
+            "table/agg_event_daily",
+            "table/agg_event_page_daily",
+            "metric/payments",
+            "metric/revenue",
+            "glossary/event_names",
+            "glossary/pages",
+            "glossary/period_month",
+            "example/cart_to_checkout_daily"
+          ],
+          "missing": [],
+          "recall": 1.0,
+          "context_chars": 2913
+        },
+        {
+          "id": "lookup-09",
+          "expected": [
+            "glossary/demographics",
+            "glossary/period_day",
+            "table/agg_user_session_daily"
+          ],
+          "retrieved": [
+            "table/agg_user_session_daily",
+            "table/agg_user_session_hourly",
+            "metric/new_returning_visitors",
+            "metric/sessions",
+            "glossary/period_day",
+            "glossary/data_rules",
+            "glossary/demographics",
+            "example/browser_cart_visitors_events"
+          ],
+          "missing": [],
+          "recall": 1.0,
+          "context_chars": 3082
+        },
+        {
+          "id": "lookup-10",
+          "expected": [
+            "glossary/period_recent_days",
+            "metric/avg_session_duration",
+            "table/agg_user_session_daily"
+          ],
+          "retrieved": [
+            "table/daily_metrics",
+            "table/agg_user_session_daily",
+            "metric/avg_session_duration",
+            "metric/engagement_rate",
+            "glossary/data_rules",
+            "glossary/period_recent_days",
+            "glossary/hour_of_day",
+            "example/landing_pages_top"
+          ],
+          "missing": [],
+          "recall": 1.0,
+          "context_chars": 2675
+        },
+        {
+          "id": "lookup-11",
+          "expected": [
+            "glossary/hour_of_day",
+            "glossary/period_week",
+            "metric/sessions",
+            "table/agg_traffic_hourly"
+          ],
+          "retrieved": [
+            "table/agg_traffic_hourly",
+            "table/agg_user_session_hourly",
+            "metric/sessions",
+            "metric/avg_session_duration",
+            "glossary/hour_of_day",
+            "glossary/data_rules",
+            "glossary/period_week",
+            "example/device_checkout_completion_events"
+          ],
+          "missing": [],
+          "recall": 1.0,
+          "context_chars": 4068
+        },
+        {
+          "id": "lookup-12",
+          "expected": [
+            "glossary/campaigns",
+            "glossary/period_recent_days",
+            "metric/conversions",
+            "table/agg_traffic_hourly"
+          ],
+          "retrieved": [
+            "table/agg_traffic_hourly",
+            "table/events",
+            "metric/bounce_rate",
+            "metric/sessions",
+            "glossary/campaigns",
+            "glossary/traffic_channels",
+            "glossary/period_recent_days",
+            "example/landing_bounce_by_source"
+          ],
+          "missing": [
+            "metric/conversions"
+          ],
+          "recall": 0.75,
+          "context_chars": 4320
+        },
+        {
+          "id": "lookup-13",
+          "expected": [
+            "glossary/period_recent_days",
+            "metric/avg_time_on_page",
+            "table/agg_page_daily"
+          ],
+          "retrieved": [
+            "table/daily_page_stats",
+            "table/daily_metrics",
+            "metric/engagement_rate",
+            "metric/avg_time_on_page",
+            "glossary/period_recent_days",
+            "glossary/data_rules",
+            "glossary/event_names",
+            "example/landing_pages_top"
+          ],
+          "missing": [
+            "table/agg_page_daily"
+          ],
+          "recall": 0.6666666666666666,
+          "context_chars": 2706
+        },
+        {
+          "id": "lookup-14",
+          "expected": [
+            "glossary/pages",
+            "glossary/period_day",
+            "table/events"
+          ],
+          "retrieved": [
+            "table/events",
+            "table/agg_user_session_hourly",
+            "metric/page_transition_rate",
+            "metric/bounce_rate",
+            "glossary/period_day",
+            "glossary/pages",
+            "glossary/data_rules",
+            "example/device_checkout_completion_events"
+          ],
+          "missing": [],
+          "recall": 1.0,
+          "context_chars": 4597
+        },
+        {
+          "id": "compare-01",
+          "expected": [
+            "glossary/period_week",
+            "metric/sessions",
+            "table/agg_traffic_hourly"
+          ],
+          "retrieved": [
+            "table/agg_traffic_hourly",
+            "table/events",
+            "metric/conversion_rate",
+            "metric/bounce_rate",
+            "glossary/traffic_channels",
+            "glossary/period_week",
+            "glossary/data_rules",
+            "example/landing_bounce_by_source"
+          ],
+          "missing": [
+            "metric/sessions"
+          ],
+          "recall": 0.6666666666666666,
+          "context_chars": 4510
+        },
+        {
+          "id": "compare-02",
+          "expected": [
+            "glossary/period_week",
+            "metric/conversion_rate",
+            "table/agg_traffic_hourly"
+          ],
+          "retrieved": [
+            "table/agg_traffic_hourly",
+            "table/events",
+            "metric/bounce_rate",
+            "metric/engagement_rate",
+            "glossary/traffic_channels",
+            "glossary/data_rules",
+            "glossary/period_week",
+            "example/landing_bounce_by_source"
+          ],
+          "missing": [
+            "metric/conversion_rate"
+          ],
+          "recall": 0.6666666666666666,
+          "context_chars": 4537
+        },
+        {
+          "id": "compare-03",
+          "expected": [
+            "glossary/period_recent_days",
+            "glossary/weekday",
+            "metric/sessions",
+            "table/agg_user_session_daily"
+          ],
+          "retrieved": [
+            "table/agg_user_session_daily",
+            "table/daily_metrics",
+            "metric/avg_session_duration",
+            "metric/engagement_rate",
+            "glossary/weekday",
+            "glossary/period_recent_days",
+            "glossary/period_day",
+            "example/daily_revenue_trend"
+          ],
+          "missing": [
+            "metric/sessions"
+          ],
+          "recall": 0.75,
+          "context_chars": 3078
+        },
+        {
+          "id": "compare-04",
+          "expected": [
+            "glossary/period_recent_days",
+            "metric/payment_session_rate",
+            "table/events"
+          ],
+          "retrieved": [
+            "table/events",
+            "table/daily_metrics",
+            "metric/payment_session_rate",
+            "metric/conversion_rate",
+            "glossary/event_names",
+            "glossary/period_recent_days",
+            "glossary/data_rules",
+            "example/cart_to_checkout_daily"
+          ],
+          "missing": [],
+          "recall": 1.0,
+          "context_chars": 4118
+        },
+        {
+          "id": "compare-05",
+          "expected": [
+            "glossary/period_recent_days",
+            "metric/unique_visitors",
+            "table/agg_daily_users"
+          ],
+          "retrieved": [
+            "table/daily_metrics",
+            "table/agg_daily_users",
+            "metric/unique_visitors",
+            "metric/new_returning_visitors",
+            "glossary/period_recent_days",
+            "glossary/period_week",
+            "glossary/weekday",
+            "example/cart_to_checkout_daily"
+          ],
+          "missing": [],
+          "recall": 1.0,
+          "context_chars": 3352
+        },
+        {
+          "id": "compare-06",
+          "expected": [
+            "glossary/event_names",
+            "glossary/period_week",
+            "table/agg_event_daily"
+          ],
+          "retrieved": [
+            "table/agg_event_daily",
+            "table/agg_event_page_daily",
+            "metric/conversions",
+            "metric/conversion_rate",
+            "glossary/period_week",
+            "glossary/period_month",
+            "glossary/data_rules",
+            "example/city_sessions_month_compare"
+          ],
+          "missing": [
+            "glossary/event_names"
+          ],
+          "recall": 0.6666666666666666,
+          "context_chars": 2664
+        }
+      ]
+    }
+  ]
+}

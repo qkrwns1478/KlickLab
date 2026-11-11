@@ -1,6 +1,8 @@
-"""Phase 1 프롬프트: 핵심 스키마 요약과 지표 정의를 시스템 프롬프트에 직접 넣는다.
+"""프롬프트.
 
-Phase 3 에서 이 내용을 지식 베이스(RAG)로 옮긴 뒤 정확도·토큰 차이를 비교한다.
+스키마 컨텍스트는 두 방식이 있다 (KNOWLEDGE_MODE).
+  prompt: 핵심 스키마 요약과 지표 정의(SCHEMA_SUMMARY)를 시스템 프롬프트에 직접 넣는다 (Phase 1~2 기준선)
+  rag   : 테이블 목록 + 질문으로 검색한 문서를 넣는다 (app/knowledge/context.py, Phase 3)
 """
 
 from datetime import date
@@ -112,10 +114,12 @@ ANSWER_SYSTEM_PROMPT = """\
 _WEEKDAYS = "월화수목금토일"
 
 
-def sql_messages(question: str, today: date) -> list[dict[str, str]]:
+def sql_messages(
+    question: str, today: date, *, schema: str = SCHEMA_SUMMARY
+) -> list[dict[str, str]]:
     context = f"오늘은 {today.isoformat()}({_WEEKDAYS[today.weekday()]}요일)이다."
     return [
-        {"role": "system", "content": SQL_SYSTEM_PROMPT.format(schema=SCHEMA_SUMMARY)},
+        {"role": "system", "content": SQL_SYSTEM_PROMPT.format(schema=schema)},
         {"role": "user", "content": f"{context}\n\n질문: {question}"},
     ]
 
@@ -157,7 +161,7 @@ AGENT_SYSTEM_PROMPT = """\
 ## 도구
 - run_sql: SELECT(또는 WITH ... SELECT) 한 문장을 실행한다. 위에 나온 테이블만 쓸 수 있고, 결과는 최대 {result_rows}행까지
   보인다. 실패하면 사유가 돌아오니 SQL 을 고쳐 다시 실행한다. 같은 SQL 을 다시 실행하지 않는다.
-- describe_table: 컬럼·타입이 헷갈릴 때만 사용한다. 위 스키마 요약으로 충분하면 쓰지 않는다.
+{search_tool}- describe_table: 컬럼·타입이 헷갈릴 때만 사용한다. 위 스키마 요약으로 충분하면 쓰지 않는다.
 - request_more_budget: 질문이 처음 판단보다 복잡해 예산이 모자랄 때 한 번만 요청할 수 있다.
 - submit_report: 결론을 제출한다. 답변은 반드시 이 도구로만 제출한다.
 
@@ -197,12 +201,26 @@ def classify_messages(question: str) -> list[dict[str, str]]:
     ]
 
 
+SEARCH_TOOL_LINE = """\
+- search_knowledge: 지표 정의, 테이블 컬럼, 기간 표현, 예시 SQL 을 검색한다. 참고 문서에 없는 지표·테이블·용어가
+  필요할 때만 쓴다.
+"""
+
+
 def agent_messages(
-    question: str, today: date, *, max_tool_calls: int, max_sql: int, result_rows: int
+    question: str,
+    today: date,
+    *,
+    max_tool_calls: int,
+    max_sql: int,
+    result_rows: int,
+    schema: str = SCHEMA_SUMMARY,
+    search_tool: bool = False,
 ) -> list[dict[str, str]]:
     context = f"오늘은 {today.isoformat()}({_WEEKDAYS[today.weekday()]}요일)이다."
     system = AGENT_SYSTEM_PROMPT.format(
-        schema=SCHEMA_SUMMARY,
+        schema=schema,
+        search_tool=SEARCH_TOOL_LINE if search_tool else "",
         result_rows=result_rows,
         max_tool_calls=max_tool_calls,
         max_sql=max_sql,

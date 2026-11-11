@@ -8,6 +8,7 @@ from pydantic.alias_generators import to_camel
 from app.agent.text_to_sql import AskResult, Status, TextToSQL
 from app.auth import AuthUser, current_user
 from app.config import Settings, get_settings
+from app.knowledge.context import get_knowledge_context
 from app.llm import LLMError, build_llm_client
 from app.sql.executor import build_executor
 
@@ -87,6 +88,7 @@ def build_text_to_sql(settings: Settings) -> TextToSQL:
             "reasoning_effort": settings.llm_answer_reasoning_effort,
         },
         max_rows=settings.sql_max_rows,
+        knowledge=get_knowledge_context(settings),
     )
 
 

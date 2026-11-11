@@ -8,6 +8,7 @@ import httpx
 from app.llm.base import ChatResult, LLMError, ToolCall, Usage
 
 _RETRYABLE = {429, 500, 502, 503, 504}
+TIMEOUT_STATUS = 408  # 응답 시간 초과 (실제 HTTP 응답이 아니라 클라이언트가 붙이는 값)
 
 
 class OpenAICompatClient:
@@ -15,6 +16,8 @@ class OpenAICompatClient:
 
     * 요청 간 최소 간격을 지켜 초 단위 레이트 리밋을 넘지 않는다.
     * 429/5xx 는 retry-after 헤더(없으면 지수 백오프)만큼 기다렸다 재시도한다.
+    * 응답 시간 초과는 재시도하지 않는다 (같은 요청은 같은 시간이 걸린다). status=408 인 LLMError.
+      호출마다 timeout 으로 기본 시간 제한을 줄일 수 있다.
     """
 
     def __init__(
@@ -49,6 +52,7 @@ class OpenAICompatClient:
         max_tokens: int | None = None,
         tools: list[dict[str, Any]] | None = None,
         tool_choice: str | dict[str, Any] | None = None,
+        timeout: float | None = None,
         **params: Any,
     ) -> ChatResult:
         body: dict[str, Any] = {"model": self.model, "messages": messages, "stream": False}
@@ -64,7 +68,7 @@ class OpenAICompatClient:
         started = time.monotonic()
         waited = [0.0]
         try:
-            response = await self._post_with_retry(body, waited)
+            response = await self._post_with_retry(body, waited, timeout)
         except LLMError as e:
             e.wait_ms = int(waited[0] * 1000)
             raise
@@ -93,11 +97,18 @@ class OpenAICompatClient:
             tool_calls=[_tool_call(c, i) for i, c in enumerate(message.get("tool_calls") or [])],
         )
 
-    async def _post_with_retry(self, body: dict[str, Any], waited: list[float]) -> httpx.Response:
+    async def _post_with_retry(
+        self, body: dict[str, Any], waited: list[float], timeout: float | None = None
+    ) -> httpx.Response:
+        options = {} if timeout is None else {"timeout": timeout}
         for attempt in range(self._max_retries + 1):
             waited[0] += await self._throttle()
             try:
-                response = await self._http.post("/chat/completions", json=body)
+                response = await self._http.post("/chat/completions", json=body, **options)
+            except httpx.TimeoutException as e:
+                raise LLMError(
+                    f"LLM 응답 시간 초과 ({type(e).__name__})", status=TIMEOUT_STATUS
+                ) from e
             except httpx.HTTPError as e:
                 if attempt == self._max_retries:
                     raise LLMError(f"LLM 요청 실패: {type(e).__name__}") from e

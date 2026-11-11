@@ -390,3 +390,154 @@ def test_compact_history_levels():
     assert _sql(level2[3]).endswith("...(생략)")
 
     assert history[2] is tools[0] and len(_rows(history[2])) == 10  # 원본은 그대로
+
+
+# --- 지식 베이스 (rag 모드) ---------------------------------------------------
+
+
+class FakeKnowledge:
+    """KnowledgeContext 대역: 질문마다 고정 문서를 돌려준다."""
+
+    def __init__(self, hits, *, error=None, search_hits=None):
+        self.hits = hits
+        self.error = error
+        self.search_k = 4
+        self.retriever = self  # search_knowledge 도구가 쓰는 검색기
+        self.search_hits = search_hits or []
+        self.searches = []
+
+    async def aschema_for(self, question):
+        from app.knowledge.context import SchemaContext
+
+        if self.error:
+            raise self.error
+        text = "## 참고 문서\n" + "\n".join(f"[{h.kind}] {h.name}: {h.content}" for h in self.hits)
+        return SchemaContext(text, self.hits)
+
+    def search(self, query, *, kinds=None, k=5, mode="hybrid"):
+        self.searches.append((query, kinds))
+        return self.search_hits
+
+
+def _hit(kind, name, content="본문"):
+    from app.knowledge.retriever import Hit
+
+    return Hit(kind, name, name, content, 0.1)
+
+
+async def test_rag_mode_puts_retrieved_documents_in_prompt_and_offers_search():
+    knowledge = FakeKnowledge(
+        [_hit("metric", "unique_visitors", "agg_daily_users 행 수")],
+        search_hits=[_hit("metric", "unique_visitors"), _hit("glossary", "period_day", "어제")],
+    )
+    agent, llm, _, store = make_agent(
+        [
+            classify("lookup"),
+            calls(("search_knowledge", {"query": "어제"})),
+            calls(("run_sql", {"sql": SQL_OK, "purpose": "p"})),
+            report(evidence=(2,)),
+        ],
+        [ROWS],
+        knowledge=knowledge,
+    )
+    events = await collect(agent)
+
+    assert by_type(events, "classified")[0]["knowledge"] == ["metric/unique_visitors"]
+    first = llm.requests[1]
+    system = first["messages"][0]["content"]
+    assert "agg_daily_users 행 수" in system and "search_knowledge:" in system
+    assert "## 일 단위 집계" not in system  # 스키마 요약 대신 검색 문서
+    assert first["tools"][:2] == ["run_sql", "search_knowledge"]
+
+    tool_msg = [m for m in llm.requests[2]["messages"] if m["role"] == "tool"][-1]
+    documents = json.loads(tool_msg["content"])["documents"]
+    assert documents == [
+        {"kind": "metric", "name": "unique_visitors", "note": "앞에서 제공함"},
+        {"kind": "glossary", "name": "period_day", "content": "어제"},
+    ]
+    done = by_type(events, "done")[0]
+    assert done["status"] == "succeeded" and done["knowledge"] == ["metric/unique_visitors"]
+    assert [s["tool"] for s in store.steps] == ["search_knowledge", "run_sql", "submit_report"]
+
+
+async def test_rag_mode_falls_back_to_schema_summary_when_retrieval_fails():
+    agent, llm, _, _ = make_agent(
+        [classify("lookup"), calls(("run_sql", {"sql": SQL_OK, "purpose": "p"})), report()],
+        [ROWS],
+        knowledge=FakeKnowledge([], error=RuntimeError("db down")),
+    )
+    events = await collect(agent)
+    assert by_type(events, "done")[0]["status"] == "succeeded"
+    assert "## 일 단위 집계" in llm.requests[1]["messages"][0]["content"]
+    assert by_type(events, "classified")[0]["knowledge"] == []
+
+
+async def test_prompt_mode_has_no_search_tool():
+    agent, llm, _, _ = make_agent(
+        [classify("lookup"), calls(("run_sql", {"sql": SQL_OK, "purpose": "p"})), report()],
+        [ROWS],
+    )
+    events = await collect(agent)
+    assert "search_knowledge" not in llm.requests[1]["tools"]
+    assert "search_knowledge" not in llm.requests[1]["messages"][0]["content"]
+    assert "knowledge" not in by_type(events, "classified")[0]
+
+
+def test_compact_history_drops_old_search_contents():
+    docs = {"ok": True, "documents": [{"kind": "metric", "name": "a", "content": "긴 본문"}]}
+    history = [{"role": "system", "content": "s"}] + [
+        {"role": "tool", "tool_call_id": f"c{i}", "content": json.dumps(docs)} for i in range(3)
+    ]
+    level0 = compact_history(history)
+    assert json.loads(level0[1]["content"]) == docs
+    level1 = compact_history(history, level=1)
+    assert json.loads(level1[1]["content"])["documents"] == [{"kind": "metric", "name": "a"}]
+    assert json.loads(level1[3]["content"]) == docs  # 최근 결과는 그대로
+
+
+# --- 모델 호출 시간 초과 ----------------------------------------------------------
+
+
+async def test_call_timeout_is_bounded_by_remaining_budget():
+    agent, llm, _, _ = make_agent(
+        [classify("lookup"), calls(("run_sql", {"sql": SQL_OK, "purpose": "p"})), report()],
+        [ROWS],
+    )
+    await collect(agent)
+    loop_calls = llm.requests[1:]  # 0번은 분류
+    assert [r["params"]["timeout"] for r in loop_calls] == [30.0, 30.0]  # lookup 30초 이하는 하한
+
+
+async def test_timeout_during_loop_forces_report_from_collected_evidence():
+    timeout = LLMError("LLM 응답 시간 초과", status=408)
+    agent, llm, _, _ = make_agent(
+        [
+            classify("compare"),
+            calls(("run_sql", {"sql": SQL_OK, "purpose": "p"})),
+            timeout,
+            report(),
+        ],
+        [ROWS],
+    )
+    events = await collect(agent)
+
+    # 시간 초과 뒤에는 도구를 열어 두지 않고 submit_report 만 요구한다 (재시도하지 않음)
+    forced = llm.requests[3]
+    assert forced["tools"] == ["submit_report"] and forced["params"]["timeout"] == 60.0
+    assert len(llm.requests) == 4
+    done = by_type(events, "done")[0]
+    assert done["status"] == "budget_exhausted"
+    assert by_type(events, "answer")[0]["forced"] is True
+    system = [m for m in forced["messages"] if m["role"] == "system"][-1]["content"]
+    assert "[예산 소진]" in system
+
+
+async def test_repeated_timeouts_end_with_server_summary():
+    timeout = LLMError("LLM 응답 시간 초과", status=408)
+    agent, _, _, _ = make_agent(
+        [classify("compare"), timeout, timeout, timeout],
+    )
+    events = await collect(agent)
+    done = by_type(events, "done")[0]
+    assert done["status"] == "budget_exhausted"
+    assert "결론을 정리하지 못했습니다" in by_type(events, "answer")[0]["summary"]

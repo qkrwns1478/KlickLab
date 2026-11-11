@@ -1,8 +1,16 @@
 from app.config import Settings
 from app.llm.base import ChatResult, LLMClient, LLMError, ToolCall, Usage
-from app.llm.openai_compat import OpenAICompatClient
+from app.llm.openai_compat import TIMEOUT_STATUS, OpenAICompatClient
 
-__all__ = ["ChatResult", "LLMClient", "LLMError", "ToolCall", "Usage", "build_llm_client"]
+__all__ = [
+    "TIMEOUT_STATUS",
+    "ChatResult",
+    "LLMClient",
+    "LLMError",
+    "ToolCall",
+    "Usage",
+    "build_llm_client",
+]
 
 
 def build_llm_client(settings: Settings) -> LLMClient:

@@ -52,6 +52,7 @@ class Budget:
         self.warned = False
         self.excluded_s = 0.0  # 레이트 리밋 대기
         self.context_full = False  # 이력을 압축해도 입력 토큰 상한을 넘는다
+        self.timed_out = False  # 모델 호출이 남은 시간 안에 끝나지 않았다
         self._clock = clock
         self._started = clock()
 
@@ -73,10 +74,24 @@ class Budget:
         limits = self.limits
         return (
             self.context_full
+            or self.timed_out
             or self.tool_calls >= limits.max_tool_calls
             or self.tokens >= limits.max_tokens
             or self.elapsed_s >= limits.timeout_s
         )
+
+    def exhausted_reason(self) -> str | None:
+        """소진된 항목 (모델에게 알릴 사유). 소진되지 않았으면 None."""
+        limits = self.limits
+        if self.context_full:
+            return "입력 길이"
+        if self.timed_out or self.elapsed_s >= limits.timeout_s:
+            return f"시간({int(limits.timeout_s)}초)"
+        if self.tool_calls >= limits.max_tool_calls:
+            return f"툴 호출({limits.max_tool_calls}회)"
+        if self.tokens >= limits.max_tokens:
+            return f"토큰({limits.max_tokens:,})"
+        return None
 
     def should_warn(self) -> bool:
         """80% 에 처음 닿았을 때 한 번만 True."""
