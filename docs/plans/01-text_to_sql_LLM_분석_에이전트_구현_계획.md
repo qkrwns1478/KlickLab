@@ -1,7 +1,6 @@
 # Text-to-SQL 기반 LLM 분석 에이전트 구현 계획
 
 - 작성일: 2026-11-10
-- 참고: `temp/text-to-sql-project-suggestion.md`
 
 ## 1. 목표
 
@@ -67,7 +66,7 @@ KlickLab의 클릭스트림 데이터 위에 **자연어로 질문하면 스스�
 설계 원칙
 
 - **Spring 백엔드는 건드리지 않는다.** 에이전트는 독립 Python 서비스로 두고 DB만 공유한다. (포트폴리오에서 Python 서비스 경계가 명확히 드러남)
-- **LLM이 만든 SQL은 신뢰하지 않는다.** 정적 검증 + DB 권한 + 실행 제한의 3중 방어.
+- **LLM이 만든 SQL은 신뢰하지 않는다.** 정적 검증 + DB 권한 + 실행 제한의 3중 방어를 해야 한다.
 - **비용은 질문 난이도에 따라 미리 정한다.** 루프가 예산을 넘으면 그 시점까지의 근거로 답한다.
 
 ## 4. 기술 스택
@@ -174,7 +173,7 @@ return final_answer or forced_summary()
    - `LIMIT` 없으면 주입, 상한 1,000행
    - `events` 조회 시 기간 조건이 없으면 거부 (원천 테이블 풀스캔 방지)
 2. **DB 권한**
-   - 전용 롤 `klicklab_agent`: 화이트리스트 테이블 `SELECT`만 부여
+   - 전용 롤 `klicklab_agent_ro`: 화이트리스트 테이블 `SELECT`만 부여 (실행 로그·지식 베이스 쓰기는 별도 롤 `klicklab_agent`가 담당)
    - RLS 정책: `sdk_key = current_setting('app.sdk_key')` — 실행기는 트랜잭션마다 `SET LOCAL app.sdk_key = <JWT의 sdk_key>` 설정. LLM이 `sdk_key` 조건을 빼먹거나 다른 값을 넣어도 다른 테넌트 데이터는 보이지 않는다.
 3. **실행 제한**
    - `SET LOCAL statement_timeout = '5s'`, `default_transaction_read_only = on`
@@ -254,7 +253,7 @@ CREATE TABLE agent_steps (
 );
 
 CREATE TABLE agent_knowledge ( ... );       -- 6.4 참고
--- + klicklab_agent 롤, GRANT, RLS 정책
+-- + klicklab_agent / klicklab_agent_ro 롤, GRANT, RLS 정책
 ```
 
 ### 6.7 프론트엔드 (`/dashboard/agent`)
@@ -282,9 +281,11 @@ CREATE TABLE agent_knowledge ( ... );       -- 6.4 참고
 
 ### Phase 0. 준비
 
-- [ ] `agent/` 프로젝트 골격 (uv, FastAPI, ruff, pytest)
-- [ ] `V4__agent.sql`: 실행 로그 테이블, `klicklab_agent` 롤, RLS 정책
-- [ ] 시드 적재 + 집계 백필 후 데모 계정으로 로컬 환경 확인
+- [x] `agent/` 프로젝트 골격 (uv, FastAPI, ruff, pytest)
+- [x] `V4__agent.sql`: 실행 로그 테이블, `klicklab_agent` 롤, RLS 정책
+- [x] 시드 적재 + 집계 백필 후 데모 계정으로 로컬 환경 확인
+
+- 작업 로그: [Phase 0 골격 및 V4 마이그레이션](../logs/2026-11-11/01-에이전트_Phase0_골격_및_V4_마이그레이션.md)
 
 ### Phase 1. 단일 턴 Text-to-SQL
 
