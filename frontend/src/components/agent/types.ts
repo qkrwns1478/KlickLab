@@ -8,7 +8,7 @@ export interface Finding {
 
 export interface AnswerChart {
   type: 'bar' | 'line';
-  stepId: number;
+  step_id: number;
   x: string;
   y: string[];
   title?: string;

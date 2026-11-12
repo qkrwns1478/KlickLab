@@ -77,7 +77,7 @@ services:
       TZ: Asia/Seoul
     ports:
       - "${BACKEND_PORT:-4000}:4000"
-      - "${BACKEND_METRICS_PORT:-9091}:9091" # Actuator: /health, /metrics
+      - "127.0.0.1:${BACKEND_METRICS_PORT:-9091}:9091" # Actuator: /health, /metrics
     depends_on:
       postgres:
         condition: service_healthy
@@ -135,7 +135,7 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
     ports:
-      - "${AGENT_PORT:-8000}:8000"
+      - "127.0.0.1:${AGENT_PORT:-8000}:8000"
     depends_on:
       agent-db-roles:
         condition: service_completed_successfully

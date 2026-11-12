@@ -35,6 +35,13 @@ from app.sql.guard import SQLRejected, guard
         ("SELECT count(*) FROM events", "timestamp"),
         ("SELECT count(*) FROM events WHERE event_name = 'page_view'", "timestamp"),
         ("SELECT * FROM (SELECT * FROM events) e WHERE e.timestamp > now()", "timestamp"),
+        ("SELECT count(*) FROM events WHERE timestamp = timestamp", "timestamp"),
+        ("SELECT count(*) FROM events WHERE timestamp >= now() - 7 OR true", "timestamp"),
+        (
+            "SELECT count(*) FROM events e JOIN agg_daily_users u ON e.client_id = u.client_id "
+            "WHERE u.timestamp >= now() - 7",
+            "timestamp",
+        ),
         (
             "SELECT count(*) FROM agg_daily_users u JOIN events e ON e.client_id = u.client_id",
             "timestamp",

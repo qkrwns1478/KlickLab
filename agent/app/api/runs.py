@@ -25,12 +25,13 @@ from pydantic.alias_generators import to_camel
 from app import metrics
 from app.agent.loop import AgentEvent, AgentLoop
 from app.agent.store import PostgresRunStore, build_run_store
+from app.api.ask import build_sql_executor, get_shared_executor, get_shared_llm
 from app.auth import AuthUser, current_user
 from app.config import Settings, get_settings
 from app.knowledge.context import get_knowledge_context
-from app.llm import LLMError, build_llm_client
+from app.llm import LLMClient, LLMError, build_llm_client
 from app.llm.pricing import Pricing
-from app.sql.executor import build_executor
+from app.sql.executor import SQLExecutor
 from app.tracing import NullTracer, Tracer, build_tracer
 
 router = APIRouter(prefix="/agent/runs")
@@ -85,17 +86,12 @@ def build_agent(
     tracer: Tracer | NullTracer | None = None,
     *,
     own_tracer: bool = False,
+    llm: LLMClient | None = None,
+    executor: SQLExecutor | None = None,
 ) -> AgentLoop:
-    executor = build_executor(
-        settings.dsn(read_only=True),
-        token_dsn=settings.dsn(read_only=False),
-        statement_timeout_ms=settings.sql_statement_timeout_ms,
-        result_rows=settings.sql_result_rows,
-        max_plan_cost=settings.sql_max_plan_cost,
-    )
     return AgentLoop(
-        build_llm_client(settings),
-        executor,
+        llm or build_llm_client(settings),
+        executor or build_sql_executor(settings),
         store,
         classify_params={
             "max_tokens": settings.agent_classify_max_tokens,
@@ -117,12 +113,14 @@ def get_agent(
     settings: Settings = Depends(get_settings),
     store: PostgresRunStore = Depends(get_run_store),
     tracer: Tracer | NullTracer = Depends(get_tracer),
+    llm: LLMClient = Depends(get_shared_llm),
+    executor: SQLExecutor = Depends(get_shared_executor),
 ) -> AgentLoop:
     state = request.app.state
     with _build_lock:
         if getattr(state, "agent", None) is None:
             try:
-                state.agent = build_agent(settings, store, tracer)
+                state.agent = build_agent(settings, store, tracer, llm=llm, executor=executor)
             except LLMError as e:
                 raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, str(e)) from None
     return state.agent

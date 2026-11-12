@@ -100,3 +100,10 @@ def test_ask_validates_question(client, pipeline):
     assert client.post("/agent/ask", json={"question": ""}, headers=headers).status_code == 422
     long = {"question": "x" * 501}
     assert client.post("/agent/ask", json=long, headers=headers).status_code == 422
+
+
+def test_dsn_quotes_special_characters_in_values():
+    from app.config import Settings
+
+    dsn = Settings(db_ro_password=r"a b'c\d").dsn(read_only=True)
+    assert r"password='a b\'c\\d'" in dsn

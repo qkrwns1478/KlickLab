@@ -1,3 +1,4 @@
+import asyncio
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
@@ -17,14 +18,17 @@ from app.metrics import HttpMetricsMiddleware
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     app.state.text_to_sql = None
     app.state.agent = None
+    app.state.llm = None  # text_to_sql 과 agent 가 함께 쓴다
+    app.state.executor = None
     app.state.run_store = None
     app.state.tracer = None
     await log_local_server_status(get_settings())
     yield
-    for name in ("text_to_sql", "agent"):
-        component = getattr(app.state, name)
-        if component is not None:
-            await component.aclose()
+    # LLM 클라이언트와 Executor 는 두 파이프라인이 공유하므로 여기서 한 번만 닫는다
+    if app.state.llm is not None:
+        await app.state.llm.aclose()
+    if app.state.executor is not None:
+        await asyncio.to_thread(app.state.executor.close)
     if app.state.tracer is not None:
         await app.state.tracer.aclose()  # 큐에 남은 트레이스를 보낸다
     if app.state.run_store is not None:

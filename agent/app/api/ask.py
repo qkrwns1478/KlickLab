@@ -10,8 +10,8 @@ from app.agent.text_to_sql import AskResult, Status, TextToSQL
 from app.auth import AuthUser, current_user
 from app.config import Settings, get_settings
 from app.knowledge.context import get_knowledge_context
-from app.llm import LLMError, build_llm_client
-from app.sql.executor import build_executor
+from app.llm import LLMClient, LLMError, build_llm_client
+from app.sql.executor import SQLExecutor, build_executor
 
 log = logging.getLogger(__name__)
 router = APIRouter(prefix="/agent")
@@ -71,17 +71,44 @@ class AskResponse(_Camel):
         )
 
 
-def build_text_to_sql(settings: Settings) -> TextToSQL:
-    executor = build_executor(
+def build_sql_executor(settings: Settings) -> SQLExecutor:
+    return build_executor(
         settings.dsn(read_only=True),
         token_dsn=settings.dsn(read_only=False),
         statement_timeout_ms=settings.sql_statement_timeout_ms,
         result_rows=settings.sql_result_rows,
         max_plan_cost=settings.sql_max_plan_cost,
     )
+
+
+def get_shared_llm(request: Request, settings: Settings = Depends(get_settings)) -> LLMClient:
+    """/agent/ask 와 /agent/runs 가 한 클라이언트를 쓴다 (요청 간격·폴백 쿨다운·커넥션 풀 공유)."""
+    state = request.app.state
+    with _build_lock:
+        if getattr(state, "llm", None) is None:
+            try:
+                state.llm = build_llm_client(settings)
+            except LLMError as e:
+                raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, str(e)) from None
+    return state.llm
+
+
+def get_shared_executor(
+    request: Request, settings: Settings = Depends(get_settings)
+) -> SQLExecutor:
+    state = request.app.state
+    with _build_lock:
+        if getattr(state, "executor", None) is None:
+            state.executor = build_sql_executor(settings)
+    return state.executor
+
+
+def build_text_to_sql(
+    settings: Settings, llm: LLMClient | None = None, executor: SQLExecutor | None = None
+) -> TextToSQL:
     return TextToSQL(
-        build_llm_client(settings),
-        executor,
+        llm or build_llm_client(settings),
+        executor or build_sql_executor(settings),
         sql_params={
             "max_tokens": settings.llm_sql_max_tokens,
             "reasoning_effort": settings.llm_sql_reasoning_effort,
@@ -95,12 +122,17 @@ def build_text_to_sql(settings: Settings) -> TextToSQL:
     )
 
 
-def get_text_to_sql(request: Request, settings: Settings = Depends(get_settings)) -> TextToSQL:
+def get_text_to_sql(
+    request: Request,
+    settings: Settings = Depends(get_settings),
+    llm: LLMClient = Depends(get_shared_llm),
+    executor: SQLExecutor = Depends(get_shared_executor),
+) -> TextToSQL:
     state = request.app.state
     with _build_lock:  # 동기 의존성이라 스레드풀에서 실행된다
         if getattr(state, "text_to_sql", None) is None:
             try:
-                state.text_to_sql = build_text_to_sql(settings)
+                state.text_to_sql = build_text_to_sql(settings, llm, executor)
             except LLMError as e:
                 raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, str(e)) from None
     return state.text_to_sql

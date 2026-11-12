@@ -610,3 +610,26 @@ async def test_history_lookup_failure_falls_back_to_new_conversation():
     events = await collect(agent)
     assert by_type(events, "started")[0]["conversationId"]
     assert by_type(events, "done")[0]["status"] == "rejected"
+
+
+async def test_closing_stream_right_after_started_still_finishes_run():
+    agent, _, _, store = make_agent([classify("lookup")])
+    stream = agent.run("q", sdk_key="key-1", user_id="u1")
+    event = await anext(stream)
+    assert event.type == "started"
+    await stream.aclose()
+    assert store.runs["r1"]["totals"].status == "failed"
+
+
+async def test_promoted_difficulty_is_stored():
+    agent, _, _, store = make_agent(
+        [
+            classify("lookup"),
+            calls(("request_more_budget", {"reason": "원인 분석"})),
+            calls(("run_sql", {"sql": SQL_OK})),
+            report(),
+        ],
+        [ROWS],
+    )
+    await collect(agent)
+    assert store.runs["r1"]["totals"].difficulty == "compare"

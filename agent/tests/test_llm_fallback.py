@@ -231,6 +231,29 @@ async def test_size_error_does_not_start_cooldown():
     assert (await llm.chat(MESSAGES)).content == "기본"  # 다음 요청은 받을 수 있다
 
 
+async def test_size_error_does_not_pin_the_session_to_fallback():
+    primary = Server(httpx.Response(413, json={}), httpx.Response(200, json=ok("기본")))
+    local = Server(httpx.Response(200, json=ok("로컬")))
+    session = chain(primary, local).session()
+    assert (await session.chat(MESSAGES)).content == "로컬"
+    assert session.fallback_active
+    assert (await session.chat(MESSAGES)).content == "기본"  # 고정되지 않아 기본 공급자로 돌아온다
+
+
+async def test_cooldown_errors_are_copied_per_session():
+    clock = Clock()
+    primary = Server(httpx.Response(429, headers={"retry-after": "30"}, json={}))
+    local = Server(httpx.Response(500, json={}), httpx.Response(500, json={}))
+    llm = chain(primary, local, clock)
+    errors = []
+    for _ in range(2):
+        with pytest.raises(LLMError) as e:
+            await llm.session().chat(MESSAGES)
+        errors.append(e.value)
+    assert errors[0] is not errors[1]
+    assert errors[0] is not llm.last_error(0)
+
+
 async def test_session_stays_on_fallback_for_the_rest_of_the_run():
     clock = Clock()
     primary = Server(

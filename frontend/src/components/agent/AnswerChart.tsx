@@ -15,7 +15,7 @@ interface Props {
 
 /** 답변의 chart 스펙을 근거 step 의 결과 행으로 그린다. 컬럼이 맞지 않으면 아무것도 그리지 않는다. */
 export const AnswerChart: React.FC<Props> = ({ chart, steps }) => {
-  const output = steps.find((s) => s.seq === chart.stepId)?.output;
+  const output = steps.find((s) => s.seq === chart.step_id)?.output;
   const columns = output?.columns;
   const rows = output?.rows;
 

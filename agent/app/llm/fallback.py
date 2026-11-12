@@ -9,6 +9,7 @@
   "사용 한도에 도달했습니다" 가 보이게).
 """
 
+import copy
 import logging
 import time
 from collections.abc import Callable, Collection, Sequence
@@ -96,6 +97,7 @@ class FallbackSession:
     def __init__(self, owner: FallbackLLMClient):
         self._owner = owner
         self._index = 0
+        self._used_fallback = False  # 413 처럼 고정하지 않고 한 번만 대체 공급자를 쓴 경우 포함
         self.primary_error: LLMError | None = None  # 폴백하게 만든 첫 공급자의 오류
 
     @property
@@ -112,7 +114,7 @@ class FallbackSession:
 
     @property
     def fallback_active(self) -> bool:
-        return self._index > 0
+        return self._index > 0 or self._used_fallback
 
     @property
     def time_factor(self) -> float:
@@ -130,6 +132,7 @@ class FallbackSession:
             # 쿨다운 중이라 첫 공급자를 건너뛴다. 그 오류를 이 실행의 폴백 사유로 쓴다
             self.primary_error = owner.last_error(0)
         waited = 0
+        size_fails, other_fails = 0, False  # 앞선 실패 중 요청 크기(413) 수 / 그 밖의 실패 여부
         for i in candidates:
             client = owner.clients[i]
             try:
@@ -139,6 +142,10 @@ class FallbackSession:
                 if not owner.eligible(e):
                     raise self._with_wait(e, waited) from None
                 owner.fail(i, e)
+                if e.status == 413:
+                    size_fails += 1
+                else:
+                    other_fails = True
                 if i == 0:
                     self.primary_error = e
                 if i < last:
@@ -151,7 +158,12 @@ class FallbackSession:
                     getattr(client, "provider", i),
                     client.model,
                 )
-                self._index = i
+                if size_fails and not other_fails:
+                    # 요청 크기 때문에 넘어간 것이다. 기본 공급자는 다음 요청을 받을 수 있으므로
+                    # 실행을 고정하지 않고 이번 호출만 대체 공급자를 쓴다
+                    self._used_fallback = True
+                else:
+                    self._index = i
             result.wait_ms += waited
             result.latency_ms += waited
             result.fallback = i > 0
@@ -160,6 +172,8 @@ class FallbackSession:
 
     @staticmethod
     def _with_wait(error: LLMError, waited: int) -> LLMError:
+        # 쿨다운 중 다른 실행이 같은 오류 객체를 받으므로 복사해서 쓴다
+        error = copy.copy(error)
         error.wait_ms = waited
         return error
 

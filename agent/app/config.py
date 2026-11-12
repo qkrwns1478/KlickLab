@@ -120,9 +120,14 @@ class Settings(BaseSettings):
     def dsn(self, *, read_only: bool) -> str:
         user = self.db_ro_user if read_only else self.db_rw_user
         password = self.db_ro_password if read_only else self.db_rw_password
+
+        # libpq 키워드 형식: 값에 공백·'·\ 가 있어도 읽히도록 따옴표로 감싸고 이스케이프한다
+        def quote(value: str) -> str:
+            return "'" + value.replace("\\", "\\\\").replace("'", "\\'") + "'"
+
         return (
-            f"host={self.db_host} port={self.db_port} dbname={self.db_name} "
-            f"user={user} password={password}"
+            f"host={quote(self.db_host)} port={self.db_port} dbname={quote(self.db_name)} "
+            f"user={quote(user)} password={quote(password)}"
         )
 
 

@@ -162,7 +162,8 @@ def _check_events_time_filter(tree: exp.Expression) -> None:
         if table.name.lower() != "events" or (table.db and table.db.lower() != "public"):
             continue
         select = table.find_ancestor(exp.Select)
-        if select is None or not _has_time_predicate(_filter_clauses(select)):
+        names = {"events", (table.alias or "").lower()} - {""}
+        if select is None or not _has_time_predicate(_filter_clauses(select), names):
             raise SQLRejected(
                 "events 테이블을 조회할 때는 WHERE 절에 timestamp 기간 조건이 필요합니다. "
                 "일 단위 이상 집계는 agg_* 테이블을 우선 사용하세요."
@@ -176,16 +177,49 @@ def _filter_clauses(select: exp.Select) -> list[exp.Expression]:
     return [c for c in clauses if c is not None]
 
 
-def _has_time_predicate(clauses: list[exp.Expression]) -> bool:
-    return any(_clause_has_time_predicate(c) for c in clauses)
+def _has_time_predicate(clauses: list[exp.Expression], names: set[str]) -> bool:
+    return any(_clause_has_time_predicate(c, names) for c in clauses)
 
 
-def _clause_has_time_predicate(where: exp.Expression) -> bool:
-    for predicate in where.find_all(*_TIME_PREDICATES):
-        for column in predicate.find_all(exp.Column):
-            if column.name.lower() == "timestamp":
-                return True
-    return False
+def _conjuncts(node: exp.Expression) -> list[exp.Expression]:
+    """최상위 AND 로 묶인 조건들. OR 안의 조건은 항상 참일 수 있어 세지 않는다."""
+    while isinstance(node, (exp.Paren, exp.Where)):
+        node = node.this
+    if isinstance(node, exp.And):
+        return _conjuncts(node.this) + _conjuncts(node.expression)
+    return [node]
+
+
+def _is_time_column(column: exp.Column, names: set[str]) -> bool:
+    return column.name.lower() == "timestamp" and (
+        not column.table or column.table.lower() in names
+    )
+
+
+def _has_column(node: exp.Expression | None) -> bool:
+    return node is not None and node.find(exp.Column) is not None
+
+
+def _compares_time_to_value(predicate: exp.Expression, names: set[str]) -> bool:
+    if isinstance(predicate, exp.Between):
+        subject, others = predicate.this, [predicate.args.get("low"), predicate.args.get("high")]
+        return _mentions_time(subject, names) and not any(_has_column(o) for o in others)
+    left, right = predicate.this, predicate.expression
+    return (_mentions_time(left, names) and not _has_column(right)) or (
+        _mentions_time(right, names) and not _has_column(left)
+    )
+
+
+def _mentions_time(node: exp.Expression | None, names: set[str]) -> bool:
+    return node is not None and any(_is_time_column(c, names) for c in node.find_all(exp.Column))
+
+
+def _clause_has_time_predicate(where: exp.Expression, names: set[str]) -> bool:
+    """events.timestamp 를 컬럼이 아닌 값(상수·now() 등)과 비교하는 조건이 AND 로 걸려 있는가."""
+    return any(
+        isinstance(p, _TIME_PREDICATES) and _compares_time_to_value(p, names)
+        for p in _conjuncts(where)
+    )
 
 
 def _apply_limit(tree: exp.Expression, text: str, max_rows: int) -> tuple[str, bool]:

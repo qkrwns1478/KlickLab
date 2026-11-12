@@ -220,10 +220,13 @@ class AgentLoop:
                 metadata={"sdkKey": sdk_key, "persisted": run.persisted},
             )
             run.llm = TracedLLM(run.llm, run.trace, self._pricing)
-        yield AgentEvent("started", {"runId": run.run_id, "conversationId": run.conversation_id})
 
         metrics.RUNS_IN_PROGRESS.inc()
         try:
+            # started 를 보내는 중에 연결이 끊겨도 finally 가 실행되도록 try 안에서 보낸다
+            yield AgentEvent(
+                "started", {"runId": run.run_id, "conversationId": run.conversation_id}
+            )
             async for event in self._execute(run):
                 yield event
         except LLMError as e:
@@ -325,6 +328,8 @@ class AgentLoop:
             if prepared is None:  # 압축해도 입력 상한을 넘는다 -> 다음 호출에서 결론을 강제한다
                 log.warning("입력 토큰 상한 도달 run_id=%s", run.run_id)
                 budget.context_full = True
+                if force:
+                    forced_calls -= 1  # 모델을 부르지 않았으므로 강제 호출 횟수를 쓰지 않는다
                 continue
 
             try:
@@ -646,9 +651,10 @@ class AgentLoop:
 
     async def _finish(self, run: _Run) -> None:
         state = run.state
+        difficulty = state.budget.difficulty if state else run.difficulty  # 승격된 난이도
         totals = RunTotals(
             status=run.status,
-            difficulty=run.difficulty,
+            difficulty=difficulty,
             answer=run.answer.to_dict() if run.answer else None,
             tool_calls=len(state.steps) if state else 0,
             input_tokens=run.usage.prompt_tokens,
@@ -658,15 +664,13 @@ class AgentLoop:
             error=run.error,
             trace_id=run.run_id if self.tracer.enabled else None,
         )
-        metrics.record_run(run.status, run.difficulty, totals.latency_ms / 1000)
+        metrics.record_run(run.status, difficulty, totals.latency_ms / 1000)
         summary = self._summary(run)
         run.trace.end(
             output=totals.answer if totals.answer else {"error": run.error},
             status=run.status,
             tags=[
-                t
-                for t in (run.difficulty, run.status, "fallback" if run.fallback_calls else None)
-                if t
+                t for t in (difficulty, run.status, "fallback" if run.fallback_calls else None) if t
             ],
             metadata={key: summary[key] for key in TRACE_SUMMARY_KEYS},
         )
