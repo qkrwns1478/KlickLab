@@ -56,6 +56,8 @@ class Settings(BaseSettings):
     # 질문마다 미리 넣을 문서 수 (종류별). 기본값은 스키마 요약과 비슷한 크기(약 5,100자)
     knowledge_context_quota: str = "table:2,metric:2,glossary:3,example:1"
     knowledge_search_k: int = 4  # search_knowledge 도구 결과 수
+    # 고른 지표 문서의 계산 테이블 문서를 최대 이만큼 더 넣는다 (0 = 끔)
+    knowledge_expand_sources: int = 0
     # local: sentence-transformers(bge-m3) / none: 키워드 검색만
     embedding_provider: str = "local"
     embedding_model: str = "BAAI/bge-m3"

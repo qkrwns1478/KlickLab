@@ -137,7 +137,7 @@ class FakeRetriever:
             raise self.error
         return self.hits[:k]
 
-    def context(self, query, quota, *, mode="hybrid"):
+    def context(self, query, quota, *, mode="hybrid", expand_sources=0):
         self.calls.append((query, quota))
         return self.hits
 
@@ -297,3 +297,27 @@ def test_keyword_and_alias_search_on_real_catalog(docs, rw_conn):
     found = {f"{h.kind}/{h.name}" for h in hits}
     assert {"table/agg_traffic_hourly", "metric/bounce_rate", "glossary/period_week"} <= found
     assert json.dumps([h.for_model() for h in hits], ensure_ascii=False)
+
+
+def test_metric_source_table_takes_first_listed_table():
+    from app.knowledge.retriever import metric_source_table
+
+    content = "지표 x\n정의: y\n테이블: agg_traffic_hourly, agg_user_session_daily\n- 참고"
+    assert metric_source_table(content) == "agg_traffic_hourly"
+    assert metric_source_table("지표 x\n정의: y") is None
+
+
+def test_context_expands_metric_source_tables_only_when_asked(docs, rw_conn):
+    sync_catalog(_TxPool(rw_conn), None, docs)
+    retriever = KnowledgeRetriever(_TxPool(rw_conn), None)  # type: ignore[arg-type]
+    question = "결제한 세션 비율"
+    quota = {"table": 1, "metric": 1}
+
+    def tables(expand: int) -> list[str]:
+        hits = retriever.context(question, quota, expand_sources=expand)
+        return [h.name for h in hits if h.kind == "table"]
+
+    assert "events" not in tables(0)  # 지표는 들어오지만 그 계산 테이블 문서는 없다
+    expanded = tables(1)
+    assert "events" in expanded
+    assert len(expanded) == len(set(expanded))  # 이미 있는 테이블은 중복해서 넣지 않는다

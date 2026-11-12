@@ -1,0 +1,68 @@
+{
+  "kind": "golden",
+  "mode": "single",
+  "model": "openai/gpt-oss-120b",
+  "reasoning_effort": "medium",
+  "label": "c15-rag",
+  "started_at": "2026-11-12T10:26:50+09:00",
+  "knowledge_mode": "rag",
+  "knowledge_quota": "table:2,metric:2,glossary:3,example:1",
+  "summary": {
+    "total": 1,
+    "execution_accuracy": 0.0,
+    "evaluated": 1,
+    "transposed": 0,
+    "llm_errors": 0,
+    "by_category": {
+      "compare": {
+        "n": 1,
+        "accuracy": 0.0
+      }
+    },
+    "beyond_summary": {
+      "n": 0,
+      "accuracy": null
+    },
+    "statuses": {
+      "mismatch": 1
+    },
+    "latency_ms_avg": 1827,
+    "latency_ms_p50": 1827,
+    "latency_ms_max": 1827,
+    "prompt_tokens_avg": 2323,
+    "completion_tokens_avg": 565,
+    "reasoning_tokens_avg": 442,
+    "retrieval_ms_avg": 24266
+  },
+  "items": [
+    {
+      "id": "compare-15",
+      "category": "compare",
+      "question": "지난주 세션 200개 이상인 유입 소스(traffic_source) 중 결제한 세션 비율(%)이 가장 높은 3개는?",
+      "status": "mismatch",
+      "reason": "정답 2번째 컬럼과 값이 같은 컬럼이 없음",
+      "sql": "SELECT\n    traffic_source,\n    SUM(sessions) AS total_sessions,\n    SUM(conversions) * 100.0 / NULLIF(SUM(sessions), 0) AS payment_session_rate_pct\nFROM agg_traffic_hourly\nWHERE summary_date >= date_trunc('week', current_date)::date - 7\n  AND summary_date < date_trunc('week', current_date)::date\nGROUP BY traffic_source\nHAVING SUM(sessions) >= 200\nORDER BY payment_session_rate_pct DESC\nLIMIT 3;",
+      "beyond_summary": false,
+      "latency_ms": 1827,
+      "prompt_tokens": 2323,
+      "completion_tokens": 565,
+      "reasoning_tokens": 442,
+      "gold_rows": 3,
+      "pred_rows": 3,
+      "knowledge": [
+        "table/agg_traffic_hourly",
+        "table/agg_funnel_links_daily",
+        "metric/payment_session_rate",
+        "metric/sessions",
+        "glossary/traffic_channels",
+        "glossary/period_week",
+        "glossary/event_names",
+        "example/landing_bounce_by_source"
+      ],
+      "retrieval_ms": 24266,
+      "transposed": false,
+      "any_step_match": null,
+      "metrics": null
+    }
+  ]
+}

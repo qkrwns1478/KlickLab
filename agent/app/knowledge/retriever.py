@@ -55,6 +55,15 @@ class Hit:
         return {"kind": self.kind, "name": self.name, "content": self.content}
 
 
+_SOURCE_LINE = re.compile(r"^테이블: (.+)$", re.MULTILINE)
+
+
+def metric_source_table(content: str) -> str | None:
+    """지표 문서 본문의 '테이블: a, b' 줄에서 첫 번째 테이블."""
+    match = _SOURCE_LINE.search(content)
+    return match.group(1).split(",")[0].strip() if match else None
+
+
 def query_terms(query: str) -> list[str]:
     terms: list[str] = []
     for token in _TOKEN.findall(query.lower()):
@@ -165,12 +174,20 @@ class KnowledgeRetriever:
             return self._search(cur, query, vector, list(kinds or KINDS), k, mode)
 
     def context(
-        self, query: str, quota: dict[Kind, int], *, mode: SearchMode = "hybrid"
+        self,
+        query: str,
+        quota: dict[Kind, int],
+        *,
+        mode: SearchMode = "hybrid",
+        expand_sources: int = 0,
     ) -> list[Hit]:
         """질문 하나에 대해 종류별 할당량만큼 문서를 고른다 (시스템 프롬프트에 미리 넣을 문서).
 
         종류마다 따로 검색한다. 한 번에 검색해 나누면 문서가 많은 종류(테이블·지표)가 후보를 차지해
         기간 표현 같은 용어 문서가 밀려난다.
+
+        expand_sources > 0 이면 고른 지표 문서가 계산에 쓰는 테이블 문서 중 아직 없는 것을 최대 그
+        개수만큼 덧붙인다. 지표 정의만 있고 그 테이블의 컬럼을 모르는 상태를 막기 위함이다.
         """
         vector = self._query_vector(query, mode)
         picked: list[Hit] = []
@@ -178,7 +195,33 @@ class KnowledgeRetriever:
             for kind, n in quota.items():
                 if n > 0:
                     picked += self._search(cur, query, vector, [kind], n, mode)
+            if expand_sources > 0:
+                picked += self._source_tables(cur, picked, expand_sources)
         return picked
+
+    def _source_tables(self, cur: Any, picked: list[Hit], limit: int) -> list[Hit]:
+        have = {h.name for h in picked if h.kind == "table"}
+        wanted: list[str] = []
+        for hit in picked:
+            if hit.kind != "metric":
+                continue
+            name = metric_source_table(hit.content)  # 지표마다 첫 번째 테이블만
+            if name and name not in have and name not in wanted:
+                wanted.append(name)
+        wanted = wanted[:limit]
+        if not wanted:
+            return []
+        cur.execute(
+            "SELECT kind, name, content, metadata->>'title' AS title FROM agent_knowledge "
+            "WHERE kind = 'table' AND name = ANY(%(names)s)",
+            {"names": wanted},
+        )
+        rows = {r["name"]: r for r in cur.fetchall()}
+        return [
+            Hit("table", n, rows[n]["title"] or n, rows[n]["content"], 0.0)
+            for n in wanted
+            if n in rows
+        ]
 
     def _query_vector(self, query: str, mode: SearchMode) -> list[float] | None:
         if mode == "keyword" or self._embedder is None:

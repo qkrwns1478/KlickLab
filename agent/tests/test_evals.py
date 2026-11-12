@@ -517,3 +517,28 @@ def test_golden_accuracy_excludes_provider_errors():
     assert summary["execution_accuracy"] == 50.0
     assert summary["evaluated"] == 2 and summary["llm_errors"] == 1
     assert summary["by_category"]["compare"] == {"n": 0, "accuracy": None}
+
+
+# --- 재채점 -------------------------------------------------------------------
+
+
+@dataclass
+class QueueExecutor:
+    results: list
+
+    def execute(self, sql, sdk_key, **kwargs):
+        return self.results.pop(0)
+
+
+def test_rescore_item_flips_transposed_mismatch_and_skips_unrescorable():
+    from evals.rescore import rescore_item
+
+    item = {"id": "compare-08", "sql": "SELECT 1"}
+    saved = {"status": "mismatch", "sql": "SELECT 1"}
+    gold = QueryResult(["a", "b"], [[2775, 951]], 1, False, 1)
+    pred = QueryResult(["p", "n"], [["recent", 2775], ["previous", 951]], 2, False, 1)
+    update = rescore_item(item, saved, QueueExecutor([gold, pred]))
+    assert update["status"] == "match" and update["transposed"]
+    for status in ("llm_error", "rejected", "no_sql"):
+        assert rescore_item(item, {"status": status, "sql": "SELECT 1"}, None) == {}
+    assert rescore_item(item, {"status": "mismatch", "sql": None}, None) == {}

@@ -52,3 +52,23 @@ def test_ambiguous_candidates_are_resolved_by_search():
 
 def test_empty_results_match():
     assert compare([], []).ok
+
+
+def test_transposed_periods_are_accepted_and_flagged():
+    gold = [[2775, 951]]  # recent_7d, previous_7d
+    pred = [["recent_7d", 2775], ["previous_7d", 951]]
+    result = compare(gold, pred)
+    assert result.ok and result.transposed
+    assert compare(gold, [[951, "previous"], [2775, "recent"]]).transposed  # 순서·컬럼 위치 무관
+
+
+def test_transposed_requires_same_values_and_unordered_question():
+    gold = [[2775, 951]]
+    assert not compare(gold, [["a", 2775], ["b", 900]]).ok
+    assert not compare(gold, [["a", 2775], ["b", 951], ["c", 1]]).ok  # 행 수가 K 가 아니다
+    assert not compare(gold, [["a", 2775], ["b", 951]], order_matters=True).ok
+    assert not compare([[5]], [[5], [5]]).ok  # 셀이 하나면 전치가 아니다
+
+
+def test_plain_match_is_not_flagged_transposed():
+    assert not compare([[1, 2]], [[1, 2]]).transposed

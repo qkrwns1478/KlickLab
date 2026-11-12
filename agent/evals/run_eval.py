@@ -122,6 +122,7 @@ class GoldenResult:
     pred_rows: int | None = None
     knowledge: list[str] = field(default_factory=list)  # rag 모드에서 프롬프트에 넣은 문서
     retrieval_ms: int = 0
+    transposed: bool = False  # 정답의 열을 행으로 돌려줘서 통과 (evals/matching.py)
     any_step_match: bool | None = None  # loop: 실행한 SQL 중 하나라도 정답과 같았는가
     metrics: RunMetrics | None = None  # loop
 
@@ -148,6 +149,7 @@ def golden_summary(items: list[GoldenResult], mode: str, price: Price) -> dict[s
         "total": len(items),
         "execution_accuracy": rate(items),
         "evaluated": sum(r.status != "llm_error" for r in items),
+        "transposed": sum(r.transposed for r in items),
         "llm_errors": sum(r.status == "llm_error" for r in items),
         "by_category": {c: group(v) for c, v in sorted(by_cat.items())},
         "beyond_summary": group(beyond),
@@ -251,6 +253,7 @@ async def _golden_single(item, pipeline: TextToSQL, executor, today) -> GoldenRe
     match = compare(gold.rows, pred.rows, order_matters=bool(item.get("order_matters")))
     out.status = "match" if match.ok else "mismatch"
     out.reason = match.reason
+    out.transposed = match.transposed
     return out
 
 
@@ -279,6 +282,7 @@ async def _golden_loop(item, agent, store: CaptureStore, executor) -> GoldenResu
     out.pred_rows = candidates[best]["output"]["rowCount"]
     out.status = "match" if matches[best].ok else "mismatch"
     out.reason = matches[best].reason
+    out.transposed = matches[best].transposed
     out.any_step_match = any(
         compare(gold.rows, s["output"]["rows"], order_matters=ordered).ok for s in ok_steps
     )
@@ -310,6 +314,11 @@ def golden_report(
         + ", ".join(f"{c} {_pct(v)}" for c, v in summary["by_category"].items())
         + f" / 스키마 요약 밖 지식 {_pct(summary['beyond_summary'])}",
         "- 상태: " + ", ".join(f"{k} {v}" for k, v in sorted(summary["statuses"].items())),
+        *(
+            [f"- 정답 중 전치 허용(두 기간을 행으로 반환)으로 통과: {summary['transposed']}문항"]
+            if summary["transposed"]
+            else []
+        ),
         f"- 지연(ms): 평균 {summary['latency_ms_avg']}, 중앙값 {summary['latency_ms_p50']}, "
         f"최대 {summary['latency_ms_max']}",
         f"- 평균 토큰: 입력 {summary['prompt_tokens_avg']}, 출력 {summary['completion_tokens_avg']}"

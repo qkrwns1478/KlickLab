@@ -73,13 +73,15 @@ class ModeResult:
         }
 
 
-def evaluate(retriever: KnowledgeRetriever, items: list[dict], quota, mode: SearchMode):
+def evaluate(
+    retriever: KnowledgeRetriever, items: list[dict], quota, mode: SearchMode, expand: int = 0
+):
     result = ModeResult(mode)
     elapsed = 0.0
     for item in items:
         expected = expected_docs(item)
         started = time.monotonic()
-        hits = retriever.context(item["question"], quota, mode=mode)
+        hits = retriever.context(item["question"], quota, mode=mode, expand_sources=expand)
         elapsed += time.monotonic() - started
         retrieved = [f"{h.kind}/{h.name}" for h in hits]
         missing = sorted(expected - set(retrieved))
@@ -146,6 +148,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--modes", nargs="*", default=list(MODES), choices=MODES)
     parser.add_argument("--label", default="")
     parser.add_argument(
+        "--expand", type=int, default=0, help="지표 문서의 계산 테이블 문서를 최대 N개 더 넣는다"
+    )
+    parser.add_argument(
         "--min-recall", type=float, help="어느 방식이든 재현율(%%)이 이보다 낮으면 종료 코드 1"
     )
     parser.add_argument("--out-dir", type=Path, default=ROOT / "reports")
@@ -159,7 +164,7 @@ def main(argv: list[str] | None = None) -> int:
     with ConnectionPool(settings.dsn(read_only=False), min_size=1, max_size=1) as pool:
         retriever = KnowledgeRetriever(pool, embedder)
         retriever.search("warmup", k=1)  # 모델 로드 시간을 지연에서 뺀다
-        results = [evaluate(retriever, items, quota, mode) for mode in args.modes]
+        results = [evaluate(retriever, items, quota, mode, args.expand) for mode in args.modes]
 
     for r in results:
         s = r.summary()

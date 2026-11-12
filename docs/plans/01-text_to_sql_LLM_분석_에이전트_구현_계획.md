@@ -316,7 +316,7 @@ CREATE TABLE agent_knowledge ( ... );       -- 6.4 참고
 
 ### Phase 4. 평가 자동화
 
-- [x] 평가셋 확장 (golden 44, diagnose 12, 안전성 21)
+- [x] 평가셋 확장 (golden 44, diagnose 12, 안전성 22)
 - [x] `run_eval.py`, LLM-as-judge, 리포트 생성 (Tool Loop·judge 실측은 LLM 한도로 미실행)
 - [x] GitHub Actions에서 PR마다 축소 평가셋 회귀 실행 (워크플로 작성, GitHub 실행은 미확인)
 - 안전성 평가에서 찾은 RLS 우회(guard 우회 시 `set_config`로 테넌트 전환)를 V5 테넌트 토큰으로 수정

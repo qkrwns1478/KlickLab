@@ -1,0 +1,96 @@
+{
+  "kind": "analysis",
+  "model": "openai/gpt-oss-120b",
+  "judge_model": "openai/gpt-oss-120b",
+  "label": "groq-retry",
+  "started_at": "2026-11-12T09:40:11+09:00",
+  "knowledge_mode": "prompt",
+  "summary": {
+    "total": 1,
+    "pass_rate": 0.0,
+    "fact_coverage": 0.0,
+    "judge_grounded": 80.0,
+    "judge_fact_coverage": 0.0,
+    "judged": 1,
+    "findings_avg": 5.0,
+    "dropped_findings": 0,
+    "forced_answers": 1,
+    "agent": {
+      "overall": {
+        "n": 1,
+        "tool_calls_avg": 8,
+        "llm_calls_avg": 11,
+        "prompt_tokens_avg": 32073,
+        "completion_tokens_avg": 15580,
+        "cost_usd_avg": 0.0,
+        "latency_ms_avg": 377937,
+        "latency_ms_p50": 377937,
+        "wait_ms_avg": 324328,
+        "budget_exhausted_rate": 100.0,
+        "failed_rate": 0.0,
+        "first_sql_ok_rate": 0.0,
+        "corrections_avg": 1,
+        "promoted": 0
+      },
+      "by_difficulty": {
+        "diagnose": {
+          "n": 1,
+          "tool_calls_avg": 8,
+          "llm_calls_avg": 11,
+          "prompt_tokens_avg": 32073,
+          "completion_tokens_avg": 15580,
+          "cost_usd_avg": 0.0,
+          "latency_ms_avg": 377937,
+          "latency_ms_p50": 377937,
+          "wait_ms_avg": 324328,
+          "budget_exhausted_rate": 100.0,
+          "failed_rate": 0.0,
+          "first_sql_ok_rate": 0.0,
+          "corrections_avg": 1,
+          "promoted": 0
+        }
+      }
+    }
+  },
+  "items": [
+    {
+      "id": "diag-01",
+      "question": "지난주 대비 이번 주 참여도가 떨어진 페이지를 찾고, 원인을 분석해 줘",
+      "passed": false,
+      "found": [],
+      "missing": [
+        "campaign_ended"
+      ],
+      "required": 1,
+      "values": {},
+      "summary": "지난주 대비 이번 주 참여도가 떨어진 페이지는 홈 페이지와 주요 제품 페이지들(예: /products/14, /products/3, /products/8)이며, 이들 페이지는 세션 감소와 이탈률 상승, 전환율 저하가 겹쳐 참여도가 크게 감소한 것으로 분석됩니다.",
+      "findings": 5,
+      "dropped_findings": 0,
+      "forced": true,
+      "judge_grounded": 0.8,
+      "judge_fact_coverage": 0.0,
+      "judge_comment": "대부분의 구체적 수치는 step 7 결과와 일치해 사실로 인정되지만, 세션 감소량과 캠페인 종료 여부는 데이터에 없으므로 부정확하거나 미포함됨.",
+      "judge_error": null,
+      "unsupported_claims": [
+        "3: step 7에는 sessions_this 값만 있고 지난주 세션 수는 제공되지 않아 주장에 있는 '지난주 144세션' 등은 확인 불가"
+      ],
+      "metrics": {
+        "status": "budget_exhausted",
+        "difficulty": "diagnose",
+        "initial_difficulty": "diagnose",
+        "tool_calls": 8,
+        "sql_attempts": 7,
+        "sql_failures": 1,
+        "first_sql_ok": false,
+        "corrections": 1,
+        "llm_calls": 11,
+        "format_errors": 2,
+        "prompt_tokens": 32073,
+        "completion_tokens": 15580,
+        "latency_ms": 377937,
+        "wait_ms": 324328,
+        "error": null
+      }
+    }
+  ]
+}

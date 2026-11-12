@@ -7,6 +7,10 @@
 * 수치는 상대 오차 0.5% 또는 절대 오차 0.01 까지 같다고 본다 (반올림 차이 허용)
 * NULL 과 0 은 같다고 본다 (FILTER 집계의 NULL vs COALESCE 0)
 * 자정(00:00:00) 타임스탬프는 날짜로 본다 (date_trunc 결과 vs date 컬럼)
+* 전치 허용(좁게): 정답이 1행(K개 값)인데 예측이 K행이고, 예측의 한 컬럼 값들이 정답 행의 값들과
+  순서 무시로 같으면 맞다고 본다. "두 기간 비교"를 열이 아니라 행으로 돌려준 경우다. 질문이 결과
+  모양을 정하지 않으면 둘 다 정당하다. 순서가 중요한 문항에는 적용하지 않고,
+  통과 시 transposed 로 표시한다
 """
 
 import math
@@ -25,6 +29,7 @@ _MIDNIGHT = re.compile(r"^(\d{4}-\d{2}-\d{2})[T ]00:00:00(\.0+)?([+-]\d{2}(:\d{2
 class Match:
     ok: bool
     reason: str = ""
+    transposed: bool = False  # 정답의 열을 예측이 행으로 돌려줘서 통과함
 
 
 def normalize(value: Any) -> Any:
@@ -85,6 +90,13 @@ def _rows_match(gold: list[tuple], pred: list[tuple], ordered: bool) -> bool:
     return True
 
 
+def _transposed(gold: list[tuple], pred: list[tuple]) -> bool:
+    if len(gold) != 1 or len(gold[0]) < 2 or len(pred) != len(gold[0]):
+        return False
+    width = len(pred[0])
+    return any(_columns_match(list(gold[0]), _column(pred, j), False) for j in range(width))
+
+
 def compare(
     gold_rows: Sequence[Sequence[Any]],
     pred_rows: Sequence[Sequence[Any]],
@@ -94,6 +106,8 @@ def compare(
     gold = [tuple(normalize(v) for v in r) for r in gold_rows]
     pred = [tuple(normalize(v) for v in r) for r in pred_rows]
     if len(gold) != len(pred):
+        if not order_matters and _transposed(gold, pred):
+            return Match(True, "전치 허용: 정답의 열을 행으로 반환", transposed=True)
         return Match(False, f"행 수 불일치 (정답 {len(gold)}, 예측 {len(pred)})")
     if not gold:
         return Match(True)

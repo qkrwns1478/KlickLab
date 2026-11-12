@@ -55,18 +55,20 @@ class KnowledgeContext:
         quota: dict[Kind, int],
         *,
         search_k: int = 4,
+        expand_sources: int = 0,
         docs: tuple[KnowledgeDoc, ...] | None = None,
         pool: ConnectionPool | None = None,
     ):
         self.retriever = retriever
         self.quota = quota
         self.search_k = search_k
+        self.expand_sources = expand_sources
         self._tables = table_list(docs if docs is not None else default_catalog())
         self._pool = pool
 
     def schema_for(self, question: str) -> SchemaContext:
         started = time.monotonic()
-        hits = self.retriever.context(question, self.quota)
+        hits = self.retriever.context(question, self.quota, expand_sources=self.expand_sources)
         text = RAG_SCHEMA.format(tables=self._tables, documents=format_hits(hits))
         return SchemaContext(text, hits, int((time.monotonic() - started) * 1000))
 
@@ -97,6 +99,7 @@ def get_knowledge_context(settings: Settings) -> KnowledgeContext | None:
                 retriever,
                 parse_quota(settings.knowledge_context_quota),
                 search_k=settings.knowledge_search_k,
+                expand_sources=settings.knowledge_expand_sources,
                 pool=pool,
             )
         return _shared
