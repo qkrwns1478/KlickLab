@@ -9,6 +9,7 @@ export default defineConfig({
     port: 5173,       // 기본 포트
     proxy: {
       '/api': 'http://localhost:4000',
+      '/agent': 'http://localhost:8000',
     },
     allowedHosts: ['klicklab.co.kr'],
   },

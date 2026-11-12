@@ -5,7 +5,10 @@
   rag   : 테이블 목록 + 질문으로 검색한 문서를 넣는다 (app/knowledge/context.py, Phase 3)
 """
 
+from collections.abc import Sequence
 from datetime import date
+
+from app.agent.turn import Turn
 
 SCHEMA_SUMMARY = """\
 ## 데이터 개요
@@ -151,6 +154,7 @@ CLASSIFY_SYSTEM_PROMPT = """\
   회원 계정 정보·다른 사이트 데이터 요청
 
 JSON 한 줄로만 답한다: {"difficulty": "<분류>", "reason": "<한국어 한 문장>"}
+이전 질문이 함께 주어지면 현재 질문이 그 후속("그럼 지난주는?", "원인도 알려줘")일 수 있으니 이전 질문의 맥락에서 분류한다.
 """
 
 AGENT_SYSTEM_PROMPT = """\
@@ -196,11 +200,38 @@ TOOL_FORMAT_RETRY = (
 )
 
 
-def classify_messages(question: str) -> list[dict[str, str]]:
+HISTORY_QUESTION_CHARS = 200
+HISTORY_SUMMARY_CHARS = 400
+
+
+def _clip(text: str, limit: int) -> str:
+    text = " ".join(text.split())
+    return text if len(text) <= limit else text[: limit - 1] + "…"
+
+
+def classify_messages(question: str, history: Sequence[Turn] = ()) -> list[dict[str, str]]:
+    content = question
+    if history:
+        previous = "\n".join(f"- {_clip(t.question, HISTORY_QUESTION_CHARS)}" for t in history)
+        content = f"이전 질문:\n{previous}\n\n현재 질문: {question}"
     return [
         {"role": "system", "content": CLASSIFY_SYSTEM_PROMPT},
-        {"role": "user", "content": question},
+        {"role": "user", "content": content},
     ]
+
+
+def history_block(history: Sequence[Turn]) -> str:
+    """이전 대화를 참고용으로 질문 앞에 붙일 블록. 질문과 답변 요약만 넣어 토큰을 아낀다."""
+    if not history:
+        return ""
+    lines = [
+        "이전 대화 (참고용이다. 현재 질문에서 생략된 기간·지표·대상을 여기서 보충하고,"
+        " 수치는 근거로 인용하지 말고 필요하면 다시 조회한다):"
+    ]
+    for i, turn in enumerate(history, start=1):
+        lines.append(f"{i}. 질문: {_clip(turn.question, HISTORY_QUESTION_CHARS)}")
+        lines.append(f"   답변 요약: {_clip(turn.summary, HISTORY_SUMMARY_CHARS)}")
+    return "\n".join(lines) + "\n\n"
 
 
 SEARCH_TOOL_LINE = """\
@@ -218,6 +249,7 @@ def agent_messages(
     result_rows: int,
     schema: str = SCHEMA_SUMMARY,
     search_tool: bool = False,
+    history: Sequence[Turn] = (),
 ) -> list[dict[str, str]]:
     context = f"오늘은 {today.isoformat()}({_WEEKDAYS[today.weekday()]}요일)이다."
     system = AGENT_SYSTEM_PROMPT.format(
@@ -229,5 +261,5 @@ def agent_messages(
     )
     return [
         {"role": "system", "content": system},
-        {"role": "user", "content": f"{context}\n\n질문: {question}"},
+        {"role": "user", "content": f"{context}\n\n{history_block(history)}질문: {question}"},
     ]

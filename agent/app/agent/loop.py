@@ -32,6 +32,7 @@ from app.agent.tools import (
     search_knowledge,
 )
 from app.agent.tools.final_answer import FinalAnswer, SubmitFinalAnswer
+from app.agent.turn import Turn
 from app.knowledge.context import KnowledgeContext
 from app.llm import TIMEOUT_STATUS, ChatResult, LLMClient, LLMError, ToolCall, Usage
 from app.sql.executor import SQLExecutor
@@ -73,9 +74,12 @@ class _Run:
     question: str
     sdk_key: str
     started: float
+    conversation_id: str = ""
+    history: list[Turn] = field(default_factory=list)  # 같은 대화의 이전 턴 (질문 + 답변 요약)
     persisted: bool = True
     difficulty: Difficulty | None = None
     status: str = "running"
+    error: str | None = None  # 사용자에게 보여 준 실패 사유 (실행 기록에도 남긴다)
     answer: FinalAnswer | None = None
     usage: Usage = field(default_factory=Usage)
     state: RunState | None = None
@@ -120,37 +124,59 @@ class AgentLoop:
             else None
         )
 
-    async def run(self, question: str, *, sdk_key: str, user_id: str) -> AsyncIterator[AgentEvent]:
+    async def run(
+        self,
+        question: str,
+        *,
+        sdk_key: str,
+        user_id: str,
+        conversation_id: str | None = None,
+    ) -> AsyncIterator[AgentEvent]:
         run = _Run(run_id="", question=question, sdk_key=sdk_key, started=self._clock())
         try:
+            run.conversation_id, run.history = await self._persist(
+                self._store.resolve_conversation,
+                sdk_key=sdk_key,
+                user_id=user_id,
+                conversation_id=conversation_id,
+            )
+        except Exception:
+            log.exception("대화 이력 조회 실패. 이전 대화 없이 진행한다.")
+            run.conversation_id, run.history = str(uuid.uuid4()), []
+        try:
             run.run_id = await self._persist(
-                self._store.create_run, sdk_key=sdk_key, user_id=user_id, question=question
+                self._store.create_run,
+                sdk_key=sdk_key,
+                user_id=user_id,
+                question=question,
+                conversation_id=run.conversation_id,
             )
         except Exception:
             log.exception("agent_runs 생성 실패. 실행 로그 없이 진행한다.")
             run.run_id, run.persisted = str(uuid.uuid4()), False
-        yield AgentEvent("started", {"runId": run.run_id})
+        yield AgentEvent("started", {"runId": run.run_id, "conversationId": run.conversation_id})
 
         try:
             async for event in self._execute(run):
                 yield event
         except LLMError as e:
-            run.status = "failed"
-            yield AgentEvent("error", {"message": f"LLM 호출 실패: {e}"})
+            run.status, run.error = "failed", e.user_message
+            log.warning("LLM 호출 실패 run_id=%s: %s", run.run_id, str(e)[:500])
+            yield AgentEvent("error", {"message": run.error})
         except Exception:
             log.exception("에이전트 실행 실패 run_id=%s", run.run_id)
-            run.status = "failed"
-            yield AgentEvent("error", {"message": "에이전트 실행 중 오류가 발생했습니다."})
+            run.status, run.error = "failed", "에이전트 실행 중 오류가 발생했습니다."
+            yield AgentEvent("error", {"message": run.error})
         finally:
             if run.status == "running":  # 클라이언트 연결 종료 등으로 중단됨
-                run.status = "failed"
+                run.status, run.error = "failed", "실행이 중단되었습니다."
             await self._finish(run)
         yield AgentEvent("done", self._summary(run))
 
     # ------------------------------------------------------------------
 
     async def _execute(self, run: _Run) -> AsyncIterator[AgentEvent]:
-        classification = await self._router.classify(run.question)
+        classification = await self._router.classify(run.question, run.history)
         run.usage += classification.usage
         run.difficulty = classification.difficulty
         await self._persist_quietly(self._store.set_difficulty, run, classification.difficulty)
@@ -186,6 +212,7 @@ class AgentLoop:
             result_rows=self._model_rows,
             schema=schema,
             search_tool=self._search is not None,
+            history=run.history,
         )
         submit = SubmitFinalAnswer()
         nudged = False
@@ -285,7 +312,9 @@ class AgentLoop:
         if self._knowledge is None:
             return prompts.SCHEMA_SUMMARY
         try:
-            context = await self._knowledge.aschema_for(run.question)
+            # 후속 질문("그럼 지난주는?")은 그 자체로는 검색되지 않으므로 직전 질문을 함께 쓴다
+            query = " ".join([*(t.question for t in run.history[-1:]), run.question])
+            context = await self._knowledge.aschema_for(query)
         except Exception:
             log.exception("지식 베이스 검색 실패 run_id=%s. 스키마 요약으로 진행한다.", run.run_id)
             return prompts.SCHEMA_SUMMARY
@@ -465,6 +494,7 @@ class AgentLoop:
             input_tokens=run.usage.prompt_tokens,
             output_tokens=run.usage.completion_tokens,
             latency_ms=self._latency_ms(run),
+            error=run.error,
         )
         await self._persist_quietly(self._store.finish_run, run, totals)
 

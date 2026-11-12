@@ -1,7 +1,11 @@
 """Phase 2 에이전트 실행 API.
 
-POST /agent/runs                 질문 → SSE 스트림 (started, classified, tool_call, tool_result,
-                                 answer, error, done)
+POST /agent/runs                 질문(+이어갈 conversationId) → SSE 스트림 (started, classified,
+                                 tool_call, tool_result, answer, error, done)
+GET  /agent/conversations        내 대화 목록 (같은 conversationId 의 실행 묶음)
+GET  /agent/conversations/{id}   대화 상세 (실행들을 오래된 순서로, 단계 포함)
+PATCH /agent/conversations/{id}  대화 이름 변경 {title}
+DELETE /agent/conversations/{id} 대화 삭제 (실행·단계 포함)
 GET  /agent/runs                 내 실행 목록
 GET  /agent/runs/{id}            실행 상세 (단계별 도구 호출, SQL, 결과)
 POST /agent/runs/{id}/feedback   👍(1) / 👎(-1) + 코멘트
@@ -14,7 +18,8 @@ from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic.alias_generators import to_camel
 
 from app.agent.loop import AgentEvent, AgentLoop
 from app.agent.store import PostgresRunStore, build_run_store
@@ -25,11 +30,28 @@ from app.llm import LLMError, build_llm_client
 from app.sql.executor import build_executor
 
 router = APIRouter(prefix="/agent/runs")
+conversations_router = APIRouter(prefix="/agent/conversations")
 _build_lock = threading.Lock()
 
 
 class RunRequest(BaseModel):
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
+
     question: str = Field(min_length=1, max_length=500)
+    # 이어서 질문할 대화. 없거나 내 대화가 아니면 새 대화로 시작한다
+    conversation_id: str | None = Field(default=None, max_length=64)
+
+
+class RenameRequest(BaseModel):
+    title: str = Field(min_length=1, max_length=100)
+
+    @field_validator("title")
+    @classmethod
+    def _strip(cls, value: str) -> str:
+        value = " ".join(value.split())
+        if not value:
+            raise ValueError("제목이 비어 있습니다.")
+        return value
 
 
 class FeedbackRequest(BaseModel):
@@ -96,7 +118,12 @@ async def create_run(
     agent: AgentLoop = Depends(get_agent),
 ) -> StreamingResponse:
     async def stream() -> AsyncIterator[str]:
-        events = agent.run(body.question.strip(), sdk_key=user.sdk_key, user_id=user.user_id)
+        events = agent.run(
+            body.question.strip(),
+            sdk_key=user.sdk_key,
+            user_id=user.user_id,
+            conversation_id=body.conversation_id,
+        )
         try:
             async for event in events:
                 yield sse(event)
@@ -117,6 +144,55 @@ def list_runs(
     store: PostgresRunStore = Depends(get_run_store),
 ) -> list[dict[str, Any]]:
     return store.list_runs(sdk_key=user.sdk_key, user_id=user.user_id, limit=limit)
+
+
+@conversations_router.get("")
+def list_conversations(
+    limit: int = Query(default=50, ge=1, le=200),
+    user: AuthUser = Depends(current_user),
+    store: PostgresRunStore = Depends(get_run_store),
+) -> list[dict[str, Any]]:
+    return store.list_conversations(sdk_key=user.sdk_key, user_id=user.user_id, limit=limit)
+
+
+@conversations_router.get("/{conversation_id}")
+def get_conversation(
+    conversation_id: str,
+    user: AuthUser = Depends(current_user),
+    store: PostgresRunStore = Depends(get_run_store),
+) -> dict[str, Any]:
+    conversation = store.get_conversation(
+        conversation_id, sdk_key=user.sdk_key, user_id=user.user_id
+    )
+    if conversation is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "대화가 없습니다.")
+    return conversation
+
+
+@conversations_router.patch("/{conversation_id}", status_code=status.HTTP_204_NO_CONTENT)
+def rename_conversation(
+    conversation_id: str,
+    body: RenameRequest,
+    user: AuthUser = Depends(current_user),
+    store: PostgresRunStore = Depends(get_run_store),
+) -> Response:
+    renamed = store.rename_conversation(
+        conversation_id, sdk_key=user.sdk_key, user_id=user.user_id, title=body.title
+    )
+    if not renamed:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "대화가 없습니다.")
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@conversations_router.delete("/{conversation_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_conversation(
+    conversation_id: str,
+    user: AuthUser = Depends(current_user),
+    store: PostgresRunStore = Depends(get_run_store),
+) -> Response:
+    if not store.delete_conversation(conversation_id, sdk_key=user.sdk_key, user_id=user.user_id):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "대화가 없습니다.")
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.get("/{run_id}")

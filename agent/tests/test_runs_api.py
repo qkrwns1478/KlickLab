@@ -1,4 +1,5 @@
 import time
+from uuid import uuid4
 
 import jwt
 import psycopg
@@ -25,8 +26,8 @@ class FakeAgent:
     def __init__(self):
         self.calls = []
 
-    async def run(self, question, *, sdk_key, user_id):
-        self.calls.append((question, sdk_key, user_id))
+    async def run(self, question, *, sdk_key, user_id, conversation_id=None):
+        self.calls.append((question, sdk_key, user_id, conversation_id))
         yield AgentEvent("started", {"runId": "r1"})
         yield AgentEvent("answer", {"summary": "575명입니다.", "findings": []})
         yield AgentEvent("done", {"runId": "r1", "status": "succeeded"})
@@ -45,6 +46,20 @@ class FakeStore:
     def set_feedback(self, run_id, *, sdk_key, user_id, feedback, note):
         self.feedback = (run_id, feedback, note)
         return run_id == "r1"
+
+    def list_conversations(self, *, sdk_key, user_id, limit):
+        return [{"id": "c1", "title": "q", "runCount": 2, "sdkKey": sdk_key, "limit": limit}]
+
+    def rename_conversation(self, conversation_id, *, sdk_key, user_id, title):
+        self.renamed = (conversation_id, title)
+        return conversation_id == "c1"
+
+    def delete_conversation(self, conversation_id, *, sdk_key, user_id):
+        self.deleted = conversation_id
+        return conversation_id == "c1"
+
+    def get_conversation(self, conversation_id, *, sdk_key, user_id):
+        return {"id": conversation_id, "runs": []} if conversation_id == "c1" else None
 
 
 @pytest.fixture
@@ -66,12 +81,54 @@ def test_create_run_streams_sse_events(client):
         assert r.headers["content-type"].startswith("text/event-stream")
         body = "".join(r.iter_text())
 
-    assert agent.calls == [("어제 방문자 수는?", "key-1", USER)]
+    assert agent.calls == [("어제 방문자 수는?", "key-1", USER, None)]
     assert body.split("\n\n")[:3] == [
         'event: started\ndata: {"runId": "r1"}',
         'event: answer\ndata: {"summary": "575명입니다.", "findings": []}',
         'event: done\ndata: {"runId": "r1", "status": "succeeded"}',
     ]
+
+
+def test_create_run_passes_conversation_id(client):
+    http, agent, _ = client
+    with http.stream(
+        "POST",
+        "/agent/runs",
+        json={"question": "그럼 지난주는?", "conversationId": "c1"},
+        headers=_headers(),
+    ) as r:
+        "".join(r.iter_text())
+    assert agent.calls[0][3] == "c1"
+
+
+def test_conversations_are_scoped_to_token(client):
+    http, *_ = client
+    listed = http.get("/agent/conversations?limit=5", headers=_headers()).json()
+    assert listed == [{"id": "c1", "title": "q", "runCount": 2, "sdkKey": "key-1", "limit": 5}]
+    assert http.get("/agent/conversations/c1", headers=_headers()).json() == {
+        "id": "c1",
+        "runs": [],
+    }
+    assert http.get("/agent/conversations/other", headers=_headers()).status_code == 404
+    assert http.get("/agent/conversations").status_code == 401
+
+
+def test_rename_and_delete_conversation(client):
+    http, _, store = client
+    ok = http.patch(
+        "/agent/conversations/c1", json={"title": "  방문자   추이 "}, headers=_headers()
+    )
+    assert ok.status_code == 204 and store.renamed == ("c1", "방문자 추이")
+    for bad in ({"title": ""}, {"title": "   "}, {"title": "x" * 101}):
+        r = http.patch("/agent/conversations/c1", json=bad, headers=_headers())
+        assert r.status_code == 422
+    missing = http.patch("/agent/conversations/x", json={"title": "t"}, headers=_headers())
+    assert missing.status_code == 404
+
+    assert http.delete("/agent/conversations/c1", headers=_headers()).status_code == 204
+    assert store.deleted == "c1"
+    assert http.delete("/agent/conversations/x", headers=_headers()).status_code == 404
+    assert http.delete("/agent/conversations/c1").status_code == 401
 
 
 def test_runs_require_token(client):
@@ -152,3 +209,53 @@ def test_store_round_trip_and_scoping(store):
     assert listed[0]["id"] == run_id
     assert store.set_feedback(run_id, sdk_key="test-store-key", user_id=USER, feedback=1, note=None)
     assert not store.set_feedback(run_id, sdk_key="other-key", user_id=USER, feedback=1, note=None)
+
+
+def test_store_conversations(store):
+    key = "test-store-key-conv"
+    conv, history = store.resolve_conversation(sdk_key=key, user_id=USER, conversation_id=None)
+    assert history == []
+
+    def run(question, status=None, summary=None):
+        run_id = store.create_run(
+            sdk_key=key, user_id=USER, question=question, conversation_id=conv
+        )
+        if status:
+            totals = RunTotals(status, "lookup", {"summary": summary}, 1, 1, 1, 1)
+            store.finish_run(run_id, totals)
+        return run_id
+
+    first = run("어제 방문자 수는?", "succeeded", "575명")
+    rejected = run("날씨?", "rejected", "범위 밖")
+    second = run("그럼 그제는?")
+
+    same, history = store.resolve_conversation(sdk_key=key, user_id=USER, conversation_id=conv)
+    assert same == conv
+    assert [(t.question, t.summary) for t in history] == [("어제 방문자 수는?", "575명")]
+
+    # 남의 대화 id 나 잘못된 id 는 새 대화로 시작한다 (이력이 새지 않는다)
+    other, leaked = store.resolve_conversation(
+        sdk_key="other-key", user_id=USER, conversation_id=conv
+    )
+    assert other != conv and leaked == []
+    assert store.resolve_conversation(sdk_key=key, user_id=USER, conversation_id="nope")[1] == []
+
+    detail = store.get_conversation(conv, sdk_key=key, user_id=USER)
+    assert [r["id"] for r in detail["runs"]] == [first, rejected, second]
+    assert store.get_conversation(conv, sdk_key="other-key", user_id=USER) is None
+    listed = [c for c in store.list_conversations(sdk_key=key, user_id=USER) if c["id"] == conv]
+    assert listed[0]["title"] == "어제 방문자 수는?" and listed[0]["runCount"] == 3
+
+    # 이름 변경은 내 대화에만 된다
+    assert store.rename_conversation(conv, sdk_key=key, user_id=USER, title="방문자 추이")
+    assert not store.rename_conversation(conv, sdk_key="other-key", user_id=USER, title="x")
+    assert not store.rename_conversation(str(uuid4()), sdk_key=key, user_id=USER, title="x")
+    listed = [c for c in store.list_conversations(sdk_key=key, user_id=USER) if c["id"] == conv]
+    assert listed[0]["title"] == "방문자 추이"
+
+    # 삭제는 내 대화만, 실행과 단계가 함께 사라진다
+    assert not store.delete_conversation(conv, sdk_key="other-key", user_id=USER)
+    assert store.delete_conversation(conv, sdk_key=key, user_id=USER)
+    assert store.get_conversation(conv, sdk_key=key, user_id=USER) is None
+    assert store.get_run(first, sdk_key=key, user_id=USER) is None
+    assert not store.delete_conversation(conv, sdk_key=key, user_id=USER)

@@ -2,11 +2,13 @@
 
 import json
 import re
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
 from app.agent import prompts
 from app.agent.budget import DIFFICULTIES, Difficulty
+from app.agent.turn import Turn
 from app.llm import LLMClient, Usage
 
 # 분류에 실패하면 중간 예산으로 시작한다. 모자라면 루프에서 승격을 요청할 수 있다.
@@ -45,8 +47,8 @@ class Router:
         self._llm = llm
         self._params = params or {}
 
-    async def classify(self, question: str) -> Classification:
-        chat = await self._llm.chat(prompts.classify_messages(question), **self._params)
+    async def classify(self, question: str, history: Sequence[Turn] = ()) -> Classification:
+        chat = await self._llm.chat(prompts.classify_messages(question, history), **self._params)
         parsed = parse_classification(chat.content)
         if parsed is None:
             return Classification(FALLBACK, "", chat.usage, chat.latency_ms, fallback=True)

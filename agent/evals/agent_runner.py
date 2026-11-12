@@ -10,6 +10,7 @@ from typing import Any
 
 from app.agent.loop import AgentEvent, AgentLoop
 from app.agent.store import RunTotals
+from app.agent.turn import Turn
 
 
 @dataclass
@@ -27,7 +28,14 @@ class CaptureStore:
     def __init__(self) -> None:
         self.runs: dict[str, CapturedRun] = {}
 
-    def create_run(self, *, sdk_key: str, user_id: str, question: str) -> str:
+    def resolve_conversation(
+        self, *, sdk_key: str, user_id: str, conversation_id: str | None
+    ) -> tuple[str, list[Turn]]:
+        return conversation_id or str(uuid.uuid4()), []  # 평가는 질문마다 독립 실행이다
+
+    def create_run(
+        self, *, sdk_key: str, user_id: str, question: str, conversation_id: str | None = None
+    ) -> str:
         run_id = str(uuid.uuid4())
         self.runs[run_id] = CapturedRun(question=question, sdk_key=sdk_key)
         return run_id

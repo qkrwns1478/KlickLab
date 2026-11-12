@@ -36,6 +36,7 @@ app.add_middleware(
 
 app.include_router(ask.router)
 app.include_router(runs.router)
+app.include_router(runs.conversations_router)
 
 
 @app.get("/agent/health")

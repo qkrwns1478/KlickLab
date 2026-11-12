@@ -325,8 +325,10 @@ CREATE TABLE agent_knowledge ( ... );       -- 6.4 참고
 
 ### Phase 5. 백오피스 UI
 
-- [ ] `/dashboard/agent` 탭, 채팅·실행 단계·SQL·결과 표·차트
-- [ ] 실행 기록 목록·상세, 피드백 버튼
+- [x] `/dashboard/agent` 탭, 채팅·실행 단계·SQL·결과 표·차트
+- [x] 실행 기록 목록·상세, 피드백 버튼 (브라우저 실행 확인은 미완료)
+
+- 작업 로그: [Phase 5 백오피스 UI](../logs/2026-11-12/01-에이전트_Phase5_백오피스_UI.md)
 
 ### Phase 6. 관측과 배포
 

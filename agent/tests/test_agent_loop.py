@@ -5,6 +5,7 @@ from typing import Any
 
 from app.agent.loop import AgentLoop, compact_history
 from app.agent.store import RunTotals
+from app.agent.turn import Turn
 from app.llm import ChatResult, LLMError, ToolCall, Usage
 from app.sql.executor import QueryResult, SQLExecutionError
 
@@ -85,11 +86,20 @@ class MemoryStore:
     runs: dict = field(default_factory=dict)
     steps: list = field(default_factory=list)
     fail: bool = False
+    history: list = field(default_factory=list)
 
-    def create_run(self, *, sdk_key, user_id, question):
+    def resolve_conversation(self, *, sdk_key, user_id, conversation_id):
+        return conversation_id or "c1", self.history
+
+    def create_run(self, *, sdk_key, user_id, question, conversation_id=None):
         if self.fail:
             raise RuntimeError("db down")
-        self.runs["r1"] = {"sdk_key": sdk_key, "user_id": user_id, "question": question}
+        self.runs["r1"] = {
+            "sdk_key": sdk_key,
+            "user_id": user_id,
+            "question": question,
+            "conversation_id": conversation_id,
+        }
         return "r1"
 
     def set_difficulty(self, run_id, difficulty):
@@ -300,10 +310,22 @@ async def test_promotion_adds_budget():
 
 
 async def test_reports_llm_failure():
-    agent, *_ = make_agent([classify("lookup"), LLMError("boom", status=500)])
+    agent, _, _, store = make_agent([classify("lookup"), LLMError("boom", status=500)])
     events = await collect(agent)
-    assert "boom" in by_type(events, "error")[0]["message"]
+    message = by_type(events, "error")[0]["message"]
+    assert message == LLMError("", status=500).user_message
     assert by_type(events, "done")[0]["status"] == "failed"
+    assert (
+        store.runs["r1"]["totals"].error == message
+    )  # 새로고침해도 같은 메시지를 보여 주도록 저장한다
+
+
+async def test_llm_failure_hides_provider_response():
+    raw = 'LLM 응답 오류 429: {"error":{"message":"... organization `org_01abc` ..."}}'
+    agent, *_ = make_agent([classify("lookup"), LLMError(raw, status=429)])
+    message = by_type(await collect(agent), "error")[0]["message"]
+    assert "org_" not in message and "{" not in message
+    assert "한도" in message
 
 
 async def test_runs_without_store_when_run_log_is_unavailable():
@@ -541,3 +563,50 @@ async def test_repeated_timeouts_end_with_server_summary():
     done = by_type(events, "done")[0]
     assert done["status"] == "budget_exhausted"
     assert "결론을 정리하지 못했습니다" in by_type(events, "answer")[0]["summary"]
+
+
+# --- 멀티턴: 같은 대화의 이전 턴을 분류기와 에이전트 프롬프트에 넣는다 ---------------------
+
+
+async def test_follow_up_question_gets_previous_turns_in_prompts():
+    history = [Turn("어제 방문자 수는?", "어제 순 방문자는 575명입니다.")]
+    agent, llm, *_ = make_agent(
+        [classify("lookup"), calls(("run_sql", {"sql": SQL_OK})), report()],
+        [ROWS],
+        store=MemoryStore(history=history),
+    )
+    events = [
+        e
+        async for e in agent.run(
+            "그럼 그제는?", sdk_key="key-1", user_id="u1", conversation_id="c9"
+        )
+    ]
+
+    assert by_type(events, "started")[0]["conversationId"] == "c9"
+    classify_prompt = llm.requests[0]["messages"][-1]["content"]
+    assert "어제 방문자 수는?" in classify_prompt and "현재 질문: 그럼 그제는?" in classify_prompt
+    agent_prompt = llm.requests[1]["messages"][-1]["content"]
+    assert "575명" in agent_prompt and agent_prompt.endswith("질문: 그럼 그제는?")
+
+
+async def test_first_question_has_no_history_block():
+    agent, llm, *_ = make_agent([classify("out_of_scope", "범위 밖")])
+    await collect(agent)
+    assert llm.requests[0]["messages"][-1]["content"] == "어제 방문자 수는?"
+
+
+async def test_conversation_id_is_saved_with_run():
+    agent, _, _, store = make_agent([classify("out_of_scope", "범위 밖")])
+    events = await collect(agent)
+    assert store.runs["r1"]["conversation_id"] == by_type(events, "started")[0]["conversationId"]
+
+
+async def test_history_lookup_failure_falls_back_to_new_conversation():
+    class BrokenHistory(MemoryStore):
+        def resolve_conversation(self, **kwargs):
+            raise RuntimeError("db down")
+
+    agent, *_ = make_agent([classify("out_of_scope", "범위 밖")], store=BrokenHistory())
+    events = await collect(agent)
+    assert by_type(events, "started")[0]["conversationId"]
+    assert by_type(events, "done")[0]["status"] == "rejected"

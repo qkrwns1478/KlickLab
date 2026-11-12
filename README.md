@@ -178,7 +178,29 @@ cd backend
 ./gradlew bootRun --args="--aggregate=backfill --from=2026-11-01 --to=2026-11-09"  # 기간 전체 재집계 (생략 시 어제)
 ```
 
-### 5. 프론트엔드 실행
+### 5. 분석 에이전트 서버 실행 (Python 3.12, uv)
+
+자연어 질문을 SQL로 바꿔 조회하는 분석 에이전트(FastAPI)입니다. 대시보드의 **분석 에이전트** 탭을 쓰려면 필요하며, DB를 공유하므로 백엔드(4번)를 한 번 실행해 마이그레이션(V4, V5)이 적용된 뒤에 띄웁니다.
+
+```bash
+# 에이전트 전용 DB 롤에 로그인 허용 (최초 1회)
+docker exec -it klicklab-postgres psql -U klicklab -d klicklab   -c "ALTER ROLE klicklab_agent_ro LOGIN PASSWORD 'agent_ro'"   -c "ALTER ROLE klicklab_agent LOGIN PASSWORD 'agent'"
+
+cd agent
+cp .env.example .env          # JWT_SECRET(backend/.env와 동일), GROQ_API_KEY 등을 채움. DB_PORT는 실제 DB 포트에 맞춤
+uv sync
+uv run uvicorn app.main:app --port 8000   # http://localhost:8000/agent/health
+```
+
+- 프론트엔드 개발 서버가 `/agent`를 `localhost:8000`으로 프록시합니다.
+- RAG 모드(`KNOWLEDGE_MODE=rag`)를 쓰려면 먼저 `uv run python -m app.knowledge.indexer`로 지식 베이스를 적재합니다.
+
+```powershell
+cd agent
+.venv\Scripts\python -m uvicorn app.main:app --port 8000
+```
+
+### 6. 프론트엔드 실행
 
 ```bash
 cd frontend

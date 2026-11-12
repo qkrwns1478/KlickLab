@@ -10,6 +10,17 @@ class LLMError(Exception):
         self.status = status
         self.wait_ms = wait_ms  # 실패 전까지 레이트 리밋 간격·재시도로 기다린 시간
 
+    @property
+    def user_message(self) -> str:
+        """사용자에게 보여 줄 문구. 공급자 응답 원문(조직 ID 등)은 담지 않고 로그에만 남긴다."""
+        if self.status == 429:
+            return "LLM 사용 한도에 도달했습니다. 잠시 후 다시 시도해 주세요."
+        if self.status == 408:
+            return "LLM 응답이 지연되고 있습니다. 잠시 후 다시 시도해 주세요."
+        if self.status in (401, 403):
+            return "LLM 서비스 인증에 문제가 있습니다. 관리자에게 문의해 주세요."
+        return "LLM 서비스에 문제가 생겼습니다. 잠시 후 다시 시도해 주세요."
+
 
 @dataclass
 class Usage:

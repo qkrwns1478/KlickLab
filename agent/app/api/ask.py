@@ -1,3 +1,4 @@
+import logging
 import threading
 from typing import Any
 
@@ -12,6 +13,7 @@ from app.knowledge.context import get_knowledge_context
 from app.llm import LLMError, build_llm_client
 from app.sql.executor import build_executor
 
+log = logging.getLogger(__name__)
 router = APIRouter(prefix="/agent")
 _build_lock = threading.Lock()
 
@@ -114,5 +116,6 @@ async def ask(
     try:
         result = await pipeline.ask(body.question.strip(), user.sdk_key)
     except LLMError as e:
-        raise HTTPException(status.HTTP_502_BAD_GATEWAY, f"LLM 호출 실패: {e}") from None
+        log.warning("LLM 호출 실패: %s", str(e)[:500])
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, e.user_message) from None
     return AskResponse.of(result)
