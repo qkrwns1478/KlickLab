@@ -193,6 +193,11 @@ BUDGET_EXHAUSTED = (
 
 ANSWER_WITH_TOOL = "결론은 submit_report 도구로 제출하라."
 
+# 결론 강제 단계에서 다른 도구를 부른 경우 (tool_choice 함수 지정을 무시하는 로컬 서버 한정)
+FINAL_ONLY_RETRY = (
+    "지금은 submit_report 만 호출할 수 있다. 다른 도구는 부르지 말고 submit_report 를 호출하라."
+)
+
 TOOL_FORMAT_RETRY = (
     "직전 도구 호출의 형식이 잘못되어 처리하지 못했다. 도구 인자를 올바른 JSON 으로 다시 호출하라. "
     'sql 은 줄바꿈 없이 한 줄로 쓰고, SQL 안의 큰따옴표(\\")는 쓰지 말고 작은따옴표만 써라. '

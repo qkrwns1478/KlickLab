@@ -39,6 +39,32 @@ class Settings(BaseSettings):
     llm_min_interval_seconds: float = 1.0
     llm_max_retries: int = 3
 
+    # 로컬 추론 서버 (Ollama 등 OpenAI 호환). LLM_PROVIDER=local 또는 폴백 대상
+    local_base_url: str = "http://localhost:11434/v1"
+    # Ollama 는 기본 num_ctx(4096)를 넘는 입력을 조용히 자르므로 num_ctx 를 늘린 파생 모델을 쓴다
+    local_model: str = "gpt-oss-20b-ctx32k"
+    local_api_key: str = "local"
+    local_num_ctx: int = 32768  # 서버 쪽 설정값. 시작 시 확인하고 다르면 경고한다
+    local_temperature: float = 1.0  # gpt-oss 권장값
+    local_top_p: float = 1.0
+    local_max_concurrency: int = 1  # GPU 하나에서 동시에 처리할 요청 수
+    # 로컬 모델로 진행하는 실행의 시간 한도 배율 (Phase 0: 단일 턴 지연이 Groq 의 약 1.4배)
+    local_time_factor: float = 2.0
+    local_timeout_seconds: float = 300.0
+    # 추론 강도 상한. gpt-oss-20b 는 high 에서 추론만으로 단계 출력 한도(AGENT_STEP_MAX_TOKENS)를
+    # 다 써서 도구 호출 없이 끝나는 경우가 많았다 (Phase 4). 빈 값이면 제한하지 않는다
+    local_max_reasoning_effort: str = "medium"
+
+    # 폴백: 기본 공급자가 한도 초과·장애로 실패하면 같은 요청을 대체 공급자에 보낸다
+    llm_fallback_provider: str = "none"  # none | local
+    llm_fallback_statuses: str = "429,413,500,502,503,504"  # 408 을 넣으면 시간 초과도 넘긴다
+    # 폴백이 있을 때 기본 공급자의 재시도 대기 상한과 재시도 횟수. 더 기다려야 하면 바로 넘긴다
+    llm_primary_max_wait_seconds: float = 5.0
+    llm_primary_max_retries: int = 1
+    # 실패한 공급자를 건너뛰는 시간 (retry-after 가 있으면 그 값). 하루 한도는 따로 길게 둔다
+    llm_fallback_cooldown_seconds: float = 60.0
+    llm_fallback_daily_cooldown_seconds: float = 3600.0
+
     # Tool Loop (Phase 2)
     agent_classify_max_tokens: int = 1024
     agent_classify_reasoning_effort: str = "low"

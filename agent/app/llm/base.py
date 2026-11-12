@@ -5,10 +5,22 @@ from typing import Any, Protocol
 class LLMError(Exception):
     """LLM 공급자 호출 실패 (네트워크, 4xx/5xx, 빈 응답)."""
 
-    def __init__(self, message: str, *, status: int | None = None, wait_ms: int = 0):
+    def __init__(
+        self,
+        message: str,
+        *,
+        status: int | None = None,
+        wait_ms: int = 0,
+        retry_after: float | None = None,
+        daily: bool = False,
+        unavailable: bool = False,
+    ):
         super().__init__(message)
         self.status = status
         self.wait_ms = wait_ms  # 실패 전까지 레이트 리밋 간격·재시도로 기다린 시간
+        self.retry_after = retry_after  # 공급자가 알려 준 재시도 가능 시점까지의 초
+        self.daily = daily  # 하루 한도 초과 (몇 분~몇 시간 뒤에야 풀린다)
+        self.unavailable = unavailable  # 서버에 연결하지 못했다 (응답 자체가 없음)
 
     @property
     def user_message(self) -> str:
@@ -51,7 +63,10 @@ class ChatResult:
     usage: Usage = field(default_factory=Usage)
     latency_ms: int = 0  # wait_ms 포함
     tool_calls: list[ToolCall] = field(default_factory=list)
-    wait_ms: int = 0  # 요청 간 최소 간격·429/5xx 재시도로 기다린 시간
+    wait_ms: int = 0  # 요청 간 최소 간격·429/5xx 재시도·동시 실행 대기로 기다린 시간
+    provider: str = ""
+    model: str = ""
+    fallback: bool = False  # 기본 공급자가 실패해 대체 공급자가 답했다
 
     def assistant_message(self) -> dict[str, Any]:
         """대화 이력에 다시 넣을 assistant 메시지 (OpenAI Chat Completions 형식)."""
@@ -76,6 +91,7 @@ class LLMClient(Protocol):
     """
 
     model: str
+    provider: str
 
     async def chat(
         self,
@@ -89,3 +105,12 @@ class LLMClient(Protocol):
     ) -> ChatResult: ...
 
     async def aclose(self) -> None: ...
+
+
+def open_session(client: LLMClient) -> LLMClient:
+    """실행 하나 동안 쓸 클라이언트. 폴백 클라이언트는 실행 도중 바뀐 모델을 끝까지 유지한다.
+
+    session() 이 없는 클라이언트(테스트용 가짜 등)는 그대로 쓴다.
+    """
+    session = getattr(client, "session", None)
+    return session() if callable(session) else client

@@ -102,12 +102,18 @@ LLM_FALLBACK_STATUSES=429,413,500,502,503,504
 LLM_PRIMARY_MAX_WAIT_SECONDS=5   # 폴백이 있을 때 primary의 retry-after 대기 상한
 LLM_FALLBACK_COOLDOWN_SECONDS=60
 LOCAL_BASE_URL=http://localhost:11434/v1
-LOCAL_MODEL=gpt-oss:20b
+LOCAL_MODEL=gpt-oss-20b-ctx32k   # num_ctx 를 늘린 파생 모델 (Phase 0)
 LOCAL_API_KEY=local
-LOCAL_NUM_CTX=16384              # 서버 쪽 설정과 일치시킨다 (Ollama는 초과 시 앞부분을 조용히 자른다)
+LOCAL_NUM_CTX=32768              # 서버 쪽 설정과 일치시킨다 (Ollama는 초과 시 앞부분을 조용히 자른다)
 LOCAL_TEMPERATURE / LOCAL_TOP_P  # 모델 권장값
 LOCAL_MAX_CONCURRENCY=1
+LOCAL_TIME_FACTOR=2.0            # 3.6의 시간 배율
+LOCAL_MAX_REASONING_EFFORT=medium  # Phase 4에서 추가
+LLM_PRIMARY_MAX_RETRIES=1
+LLM_FALLBACK_DAILY_COOLDOWN_SECONDS=3600
 ```
+
+> 구현 시 바뀐 이름: `LLM_FALLBACK_TIME_FACTOR` → `LOCAL_TIME_FACTOR`. 배율을 "폴백 여부"가 아니라 "지금 답하는 공급자"에 따라 적용해야 로컬 단독 평가와 폴백 실행이 같은 예산을 쓴다.
 
 기본값은 폴백 없음이라 기존 동작은 바뀌지 않는다.
 
@@ -187,6 +193,8 @@ LOCAL_MAX_CONCURRENCY=1
 - `OpenAICompatClient`에 `drop_params`/`param_map` 추가.
 - `LLM_PROVIDER=local`로 단독 실행해 골든·분석 평가를 한 번 돌린다(Groq 결과와 비교).
 
+**완료 (2026-11-12)** — 작업 로그: [03-로컬_LLM_폴백_Phase1-4_구현](../logs/2026-11-12/03-로컬_LLM_폴백_Phase1-4_구현.md). 시작 시 헬스 체크(`/v1/models`, Ollama `/api/show`의 `num_ctx`)와 컨텍스트 잘림 의심 경고도 넣었다.
+
 ### Phase 2. `FallbackLLMClient`
 
 - 폴백 조건, primary 대기 상한, 쿨다운, 세마포어, 로컬 장애 시 primary 오류 반환을 구현한다.
@@ -198,6 +206,8 @@ LOCAL_MAX_CONCURRENCY=1
   - 로컬 서버 다운 시 primary 오류 문구 반환
   - 폴백 응답의 tool_calls가 루프 이력에 정상 합쳐지는지 (`loop` 통합 테스트)
 
+**완료 (2026-11-12)** — 작업 로그: [03-로컬_LLM_폴백_Phase1-4_구현](../logs/2026-11-12/03-로컬_LLM_폴백_Phase1-4_구현.md). Phase 0에서 정한 로컬 한정 보정(결론 강제 단계의 잘못된 도구 호출 재요청)과 3.6의 시간 배율도 이 단계에 넣었다. 테스트 35건.
+
 ### Phase 3. 실행 기록·화면 연동
 
 - 실행 요약과 로그에 모델·폴백 정보 추가. DB 마이그레이션은 1차에서 하지 않는다(9장).
@@ -205,11 +215,26 @@ LOCAL_MAX_CONCURRENCY=1
 - 평가 러너의 폴백 비활성화와 보고서 경고.
 - 3.5의 `max_prompt_tokens`와 3.6의 시간 배율은 Phase 4 결과를 보고 반영한다.
 
+**완료 (2026-11-12)** — 작업 로그: [03-로컬_LLM_폴백_Phase1-4_구현](../logs/2026-11-12/03-로컬_LLM_폴백_Phase1-4_구현.md). 화면 표시는 난이도 줄 옆의 "로컬 모델" 표시 하나다. `max_prompt_tokens`는 완화하지 않았다(Phase 4 결과).
+
 ### Phase 4. 품질·지연 평가
 
 - 같은 평가셋(golden_sql, analysis_questions)을 Groq 단독, 로컬 단독으로 돌려 비교한다.
 - 폴백 시나리오 점검: Groq 키 한도를 소진시키거나 모의 429를 주입해 중간 전환이 실제로 완주하는지 확인한다.
 - 산출물: 로컬 모델 정확도와 지연 표, 폴백 허용 난이도 결정.
+
+**결과 (2026-11-12)** — 작업 로그: [03-로컬_LLM_폴백_Phase1-4_구현](../logs/2026-11-12/03-로컬_LLM_폴백_Phase1-4_구현.md)
+
+| 구성 (golden 20문항, Tool Loop) | 실행 정확도 | 지연 평균 / 최대 (ms) |
+| --- | --- | --- |
+| Groq 단독 | 측정 불가 (2/20만 응답, 하루 토큰 한도 소진) | - |
+| 로컬 단독, 추론 강도 그대로 | 90.0% | 33,659 / 151,015 |
+| 로컬 단독, 추론 강도 상한 medium | 95.0% | 24,299 / 74,875 |
+
+- 폴백 시나리오(44문항, 모의·실제 429): 44/44 완주, 실행 정확도 81.8%, 실행 중 전환 10건 모두 완주. 로컬 서버를 끄면 기존 한도 안내 문구로 끝난다.
+- Phase 4에서 찾아 고친 것: gpt-oss-20b가 high 추론으로 단계 출력 한도를 다 써 도구 호출 없이 끝나는 문제(`LOCAL_MAX_REASONING_EFFORT=medium`). Ollama가 잘못된 도구 호출 JSON에 500을 내 폴백 체인이 장애로 오인하는 문제(400 `tool_use_failed`로 변환).
+- 원인 분석 12문항(로컬 단독): 통과 41.7%. 근거 인용 형식 오류로 주장이 대부분 빠졌다.
+- **결정**: 폴백은 전체 난이도에 허용한다(개발 환경 전용, 응답에 표시). diagnose는 Groq 기준선을 측정한 뒤 다시 판단한다. `LOCAL_TIME_FACTOR=2.0` 유지.
 
 ### Phase 5. 배포 정책 정리
 
@@ -222,6 +247,13 @@ LOCAL_MAX_CONCURRENCY=1
 - 로컬 서버가 꺼져 있어도 에이전트 서버가 기동하고, 한도 초과 시 기존과 같은 안내 문구가 나온다.
 - 평가 보고서에서 모델이 섞이지 않는다.
 - Phase 4에서 로컬 모델의 골든 실행 정확도가 Groq 대비 어느 정도인지 수치로 남고, 폴백을 허용할 난이도가 정해진다.
+  - 2026-11-12 기준: 로컬 수치와 허용 난이도는 정했다. Groq Tool Loop 기준선은 한도 때문에 아직 없다.
+  - 2026-11-13 이후에 다음 두 명령으로 Groq를 같은 조건에서 돌리고 비교해야 한다.
+  ```bash
+  cd agent
+  .venv/Scripts/python -m evals.run_eval golden --mode loop --provider groq --ids lookup-01 ... compare-06
+  .venv/Scripts/python -m evals.run_eval analysis --provider groq
+  ```
 
 ## 9. 열린 질문
 

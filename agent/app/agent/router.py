@@ -24,6 +24,8 @@ class Classification:
     usage: Usage = field(default_factory=Usage)
     latency_ms: int = 0
     fallback: bool = False  # 모델 출력을 해석하지 못해 기본값을 썼다
+    model: str = ""  # 분류에 쓴 모델
+    via_fallback: bool = False  # 대체 LLM 공급자가 답했다
 
 
 def parse_classification(content: str) -> tuple[Difficulty, str] | None:
@@ -47,10 +49,18 @@ class Router:
         self._llm = llm
         self._params = params or {}
 
-    async def classify(self, question: str, history: Sequence[Turn] = ()) -> Classification:
-        chat = await self._llm.chat(prompts.classify_messages(question, history), **self._params)
+    async def classify(
+        self, question: str, history: Sequence[Turn] = (), *, llm: LLMClient | None = None
+    ) -> Classification:
+        """llm: 실행 세션 (폴백 공급자를 실행 끝까지 유지한다). 없으면 생성 시 받은 클라이언트."""
+        chat = await (llm or self._llm).chat(
+            prompts.classify_messages(question, history), **self._params
+        )
         parsed = parse_classification(chat.content)
+        served = {"model": chat.model, "via_fallback": chat.fallback}
         if parsed is None:
-            return Classification(FALLBACK, "", chat.usage, chat.latency_ms, fallback=True)
+            return Classification(
+                FALLBACK, "", chat.usage, chat.latency_ms, fallback=True, **served
+            )
         difficulty, reason = parsed
-        return Classification(difficulty, reason, chat.usage, chat.latency_ms)
+        return Classification(difficulty, reason, chat.usage, chat.latency_ms, **served)

@@ -58,6 +58,11 @@ export const TurnView: React.FC<Props> = ({ turn, busy, live, onRate }) => {
         <div className="text-xs text-gray-500">
           {DIFFICULTY_LABEL[turn.difficulty]}
           {turn.status === 'budget_exhausted' && ' · 예산 소진'}
+          {turn.fallback && (
+            <span className="ml-1.5 px-1.5 rounded bg-amber-50 text-amber-700" title={turn.fallback.model}>
+              {turn.fallback.provider === 'local' ? '로컬 모델' : turn.fallback.model}
+            </span>
+          )}
         </div>
       )}
 

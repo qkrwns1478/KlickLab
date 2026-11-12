@@ -3,6 +3,7 @@
 run() 은 실행 과정을 이벤트로 내보내는 async generator 다 (SSE 로 그대로 전달된다).
     started → classified → (tool_call → tool_result)* → answer → done
     오류 시: error → done
+    기본 LLM 공급자가 실패해 대체 공급자로 넘어가면 그 시점에 fallback 을 한 번 낸다.
 """
 
 import asyncio
@@ -10,6 +11,7 @@ import json
 import logging
 import time
 import uuid
+from collections import Counter
 from collections.abc import AsyncIterator, Callable
 from dataclasses import dataclass, field
 from datetime import date
@@ -34,7 +36,15 @@ from app.agent.tools import (
 from app.agent.tools.final_answer import FinalAnswer, SubmitFinalAnswer
 from app.agent.turn import Turn
 from app.knowledge.context import KnowledgeContext
-from app.llm import TIMEOUT_STATUS, ChatResult, LLMClient, LLMError, ToolCall, Usage
+from app.llm import (
+    TIMEOUT_STATUS,
+    ChatResult,
+    LLMClient,
+    LLMError,
+    ToolCall,
+    Usage,
+    open_session,
+)
 from app.sql.executor import SQLExecutor
 
 log = logging.getLogger(__name__)
@@ -49,6 +59,9 @@ COMPACT_ROWS = 5
 MAX_COMPACTION = 2
 SQL_PREVIEW_CHARS = 160
 MAX_FORCED_CALLS = 2  # 예산 소진 후 final_answer 강제 호출 횟수
+# 결론 강제 단계에서 다른 도구를 부른 응답을 바로잡는 횟수. tool_choice 함수 지정을 무시하는
+# 공급자(로컬 Ollama)에서만 쓴다 (Phase 0: 도구가 하나뿐이어도 3회 중 1회 다른 도구를 불렀다)
+MAX_FINAL_ONLY_RETRIES = 2
 # 모델 호출 하나의 응답 시간 제한. 남은 시간 예산을 넘기지 못하게 하되 하한을 둔다.
 # 결론 제출은 이미 모은 근거로 쓰는 마지막 호출이라 예산이 끝난 뒤에도 이만큼은 기다린다.
 MIN_CALL_TIMEOUT_S = 30.0
@@ -88,6 +101,10 @@ class _Run:
     chars_per_token: float = 2.0  # 첫 호출 전 보수적 추정치 (한국어가 섞여 영어보다 작다)
     wait_ms: int = 0  # LLM 레이트 리밋 대기 합
     knowledge: list[str] = field(default_factory=list)  # 시스템 프롬프트에 넣은 지식 문서
+    llm: Any = None  # 이 실행의 LLM 세션 (폴백 공급자로 넘어가면 끝까지 유지한다)
+    models: Counter[str] = field(default_factory=Counter)  # 모델별 호출 수
+    fallback_calls: int = 0
+    fallback_announced: bool = False
 
 
 class AgentLoop:
@@ -133,6 +150,7 @@ class AgentLoop:
         conversation_id: str | None = None,
     ) -> AsyncIterator[AgentEvent]:
         run = _Run(run_id="", question=question, sdk_key=sdk_key, started=self._clock())
+        run.llm = open_session(self._llm)
         try:
             run.conversation_id, run.history = await self._persist(
                 self._store.resolve_conversation,
@@ -176,8 +194,11 @@ class AgentLoop:
     # ------------------------------------------------------------------
 
     async def _execute(self, run: _Run) -> AsyncIterator[AgentEvent]:
-        classification = await self._router.classify(run.question, run.history)
+        classification = await self._router.classify(run.question, run.history, llm=run.llm)
         run.usage += classification.usage
+        self._count_call(run, classification.model, classification.via_fallback)
+        if (event := self._fallback_event(run)) is not None:
+            yield event
         run.difficulty = classification.difficulty
         await self._persist_quietly(self._store.set_difficulty, run, classification.difficulty)
 
@@ -191,6 +212,7 @@ class AgentLoop:
             return
 
         budget = Budget(classification.difficulty, clock=self._clock)
+        budget.time_factor = _time_factor(run.llm)
         state = run.state = RunState(sdk_key=run.sdk_key, budget=budget)
         schema = await self._schema(run, state)
         classified: dict[str, Any] = {
@@ -217,7 +239,7 @@ class AgentLoop:
         submit = SubmitFinalAnswer()
         nudged = False
         must_answer = False  # 도구 없이 답한 모델에게 final_answer 를 강제한다
-        forced_calls = format_errors = 0
+        forced_calls = format_errors = final_only_retries = 0
         exhausted = False
 
         while run.answer is None and run.llm_calls < MAX_LLM_CALLS:
@@ -270,6 +292,8 @@ class AgentLoop:
                     continue
                 raise
             format_errors = 0
+            if (event := self._fallback_event(run)) is not None:
+                yield event
 
             if chat.content or chat.tool_calls:
                 messages.append(chat.assistant_message())
@@ -300,6 +324,17 @@ class AgentLoop:
                 if step.final is not None:
                     run.answer = step.final
                     run.answer.forced = exhausted
+            if (
+                force
+                and run.answer is None
+                and getattr(run.llm, "forced_tool_unreliable", False)
+                and final_only_retries < MAX_FINAL_ONLY_RETRIES
+            ):
+                # 결론 강제를 무시하고 다른 도구를 불렀다. 강제 횟수에서 빼고 다시 요청한다
+                log.warning("결론 강제 단계의 다른 도구 호출 run_id=%s", run.run_id)
+                messages.append({"role": "user", "content": prompts.FINAL_ONLY_RETRY})
+                final_only_retries += 1
+                forced_calls -= 1
 
         if run.answer is None:
             run.answer = FinalAnswer(summary=NO_CONCLUSION, forced=True)
@@ -354,7 +389,7 @@ class AgentLoop:
     ) -> ChatResult:
         run.llm_calls += 1
         try:
-            chat = await self._llm.chat(
+            chat = await run.llm.chat(
                 messages,
                 tools=tools,
                 # auto 면 gpt-oss 가 도구 호출 없이 빈 응답으로 끝내기도 해 항상 도구를 고르게 한다
@@ -367,11 +402,41 @@ class AgentLoop:
             self._waited(run, budget, e.wait_ms)
             raise
         self._waited(run, budget, chat.wait_ms)
+        self._count_call(run, chat.model, chat.fallback)
+        budget.time_factor = _time_factor(run.llm)
         run.usage += chat.usage
         budget.tokens += chat.usage.prompt_tokens + chat.usage.completion_tokens
         if chat.usage.prompt_tokens > 0:  # 다음 요청의 토큰 추정에 쓴다
             run.chars_per_token = _chars(messages, tools) / chat.usage.prompt_tokens
         return chat
+
+    @staticmethod
+    def _count_call(run: _Run, model: str, fallback: bool) -> None:
+        run.models[model or getattr(run.llm, "model", "") or "unknown"] += 1
+        if fallback:
+            run.fallback_calls += 1
+
+    @staticmethod
+    def _fallback_event(run: _Run) -> AgentEvent | None:
+        """세션이 대체 공급자로 넘어갔으면 실행 중 한 번만 알린다."""
+        if run.fallback_announced or not getattr(run.llm, "fallback_active", False):
+            return None
+        run.fallback_announced = True
+        error = getattr(run.llm, "primary_error", None)
+        log.warning(
+            "폴백 공급자로 진행 run_id=%s model=%s primary_status=%s",
+            run.run_id,
+            run.llm.model,
+            error.status if error else None,
+        )
+        return AgentEvent(
+            "fallback",
+            {
+                "provider": run.llm.provider,
+                "model": run.llm.model,
+                "primaryStatus": error.status if error else None,
+            },
+        )
 
     @staticmethod
     def _waited(run: _Run, budget: Budget, wait_ms: int) -> None:
@@ -527,6 +592,10 @@ class AgentLoop:
             "usage": vars(run.usage),
             "latencyMs": self._latency_ms(run),
             "knowledge": run.knowledge,
+            "model": getattr(run.llm, "model", None) or self._llm.model,
+            "models": dict(run.models),
+            "fallbackCalls": run.fallback_calls,
+            "primaryError": _primary_status(run.llm),
         }
 
     async def aclose(self) -> None:
@@ -536,8 +605,23 @@ class AgentLoop:
 
 def _call_timeout(budget: Budget, final: bool) -> float:
     if final:
-        return FINAL_CALL_TIMEOUT_S
-    return max(budget.limits.timeout_s - budget.elapsed_s, MIN_CALL_TIMEOUT_S)
+        return FINAL_CALL_TIMEOUT_S * budget.time_factor
+    return max(budget.timeout_s - budget.elapsed_s, MIN_CALL_TIMEOUT_S * budget.time_factor)
+
+
+def _time_factor(llm: Any) -> float:
+    factor = getattr(llm, "time_factor", 1.0)
+    return float(factor) if isinstance(factor, int | float) and factor > 0 else 1.0
+
+
+def _primary_status(llm: Any) -> int | None:
+    """폴백하게 만든 기본 공급자의 오류 상태 (연결 실패는 0)."""
+    if not getattr(llm, "fallback_active", False):
+        return None
+    error = getattr(llm, "primary_error", None)
+    if error is None:
+        return None
+    return error.status or 0
 
 
 def _tool_message(call: ToolCall, content: dict[str, Any]) -> dict[str, Any]:

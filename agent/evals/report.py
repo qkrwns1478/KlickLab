@@ -2,7 +2,7 @@
 
 import json
 import statistics
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -43,6 +43,8 @@ class RunMetrics:
     latency_ms: int = 0
     wait_ms: int = 0
     error: str | None = None
+    models: dict[str, int] = field(default_factory=dict)  # 모델별 LLM 호출 수
+    fallback_calls: int = 0
 
     @classmethod
     def of(cls, trace: AgentTrace) -> "RunMetrics":
@@ -65,7 +67,22 @@ class RunMetrics:
             latency_ms=summary.get("latencyMs", 0),
             wait_ms=summary.get("rateLimitWaitMs", 0),
             error=trace.error,
+            models=dict(summary.get("models") or {}),
+            fallback_calls=summary.get("fallbackCalls", 0),
         )
+
+
+def model_mix_warning(metrics: list[RunMetrics]) -> list[str]:
+    """여러 모델이 답한 실행이 섞였으면 보고서 머리에 남길 경고 (모델별 정확도를 해석할 수 없다)."""
+    models: dict[str, int] = {}
+    for m in metrics:
+        for model, n in m.models.items():
+            models[model] = models.get(model, 0) + n
+    fallback_runs = sum(1 for m in metrics if m.fallback_calls)
+    if len(models) <= 1 and not fallback_runs:
+        return []
+    mix = ", ".join(f"{k} {v}회" for k, v in sorted(models.items()))
+    return [f"- **경고: 모델이 섞였다** (폴백 실행 {fallback_runs}건, LLM 호출 {mix})"]
 
 
 def _avg(values: list[float]) -> float:

@@ -51,6 +51,8 @@ export interface RunView {
   answer: Answer | null;
   error: string | null;
   feedback: 1 | -1 | null;
+  /** 기본 LLM 공급자가 실패해 대체 공급자가 답했다 (스트림 응답 직후에만 안다) */
+  fallback?: { provider: string; model: string } | null;
 }
 
 export interface ConversationSummary {

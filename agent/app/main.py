@@ -8,6 +8,7 @@ from app.api import ask, runs
 from app.auth import AuthUser, current_user
 from app.config import get_settings
 from app.knowledge.context import close_knowledge_context
+from app.llm.health import log_local_server_status
 
 
 @asynccontextmanager
@@ -15,6 +16,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     app.state.text_to_sql = None
     app.state.agent = None
     app.state.run_store = None
+    await log_local_server_status(get_settings())
     yield
     for name in ("text_to_sql", "agent"):
         component = getattr(app.state, name)

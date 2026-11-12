@@ -35,6 +35,8 @@ function applyEvent(run: RunView, { type, data }: AgentEvent): RunView {
       return { ...run, id: data.runId };
     case 'classified':
       return { ...run, difficulty: data.difficulty };
+    case 'fallback':
+      return { ...run, fallback: { provider: data.provider, model: data.model } };
     case 'tool_call':
       return {
         ...run,

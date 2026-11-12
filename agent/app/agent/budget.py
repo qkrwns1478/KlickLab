@@ -53,8 +53,13 @@ class Budget:
         self.excluded_s = 0.0  # 레이트 리밋 대기
         self.context_full = False  # 이력을 압축해도 입력 토큰 상한을 넘는다
         self.timed_out = False  # 모델 호출이 남은 시간 안에 끝나지 않았다
+        self.time_factor = 1.0  # 느린 공급자(로컬 모델)로 진행할 때 시간 한도 배율
         self._clock = clock
         self._started = clock()
+
+    @property
+    def timeout_s(self) -> float:
+        return self.limits.timeout_s * self.time_factor
 
     @property
     def elapsed_s(self) -> float:
@@ -67,7 +72,7 @@ class Budget:
             self.tool_calls / limits.max_tool_calls,
             self.sql_runs / limits.max_sql,
             self.tokens / limits.max_tokens,
-            self.elapsed_s / limits.timeout_s,
+            self.elapsed_s / self.timeout_s,
         )
 
     def exhausted(self) -> bool:
@@ -77,7 +82,7 @@ class Budget:
             or self.timed_out
             or self.tool_calls >= limits.max_tool_calls
             or self.tokens >= limits.max_tokens
-            or self.elapsed_s >= limits.timeout_s
+            or self.elapsed_s >= self.timeout_s
         )
 
     def exhausted_reason(self) -> str | None:
@@ -85,8 +90,8 @@ class Budget:
         limits = self.limits
         if self.context_full:
             return "입력 길이"
-        if self.timed_out or self.elapsed_s >= limits.timeout_s:
-            return f"시간({int(limits.timeout_s)}초)"
+        if self.timed_out or self.elapsed_s >= self.timeout_s:
+            return f"시간({int(self.timeout_s)}초)"
         if self.tool_calls >= limits.max_tool_calls:
             return f"툴 호출({limits.max_tool_calls}회)"
         if self.tokens >= limits.max_tokens:
@@ -125,5 +130,5 @@ class Budget:
             "toolCalls": max(limits.max_tool_calls - self.tool_calls, 0),
             "sqlRuns": max(limits.max_sql - self.sql_runs, 0),
             "tokens": max(limits.max_tokens - self.tokens, 0),
-            "seconds": max(int(limits.timeout_s - self.elapsed_s), 0),
+            "seconds": max(int(self.timeout_s - self.elapsed_s), 0),
         }

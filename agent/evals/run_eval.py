@@ -10,6 +10,8 @@
 
 공통 옵션: --ids, --ci(PR 회귀용 축소 평가셋), --provider/--model, --knowledge prompt|rag,
 --label, --min-score(점수가 이보다 낮으면 종료 코드 1).
+LLM 폴백(LLM_FALLBACK_PROVIDER)은 끈 채로 평가한다. 모델이 섞이면 모델별 정확도를 해석할 수 없다.
+로컬 모델은 --provider local 로 따로 평가한다. 폴백 동작 자체를 보려면 --fallback 을 준다.
 결과는 evals/reports/ 에 Markdown 과 JSON 으로 남긴다.
 """
 
@@ -45,6 +47,8 @@ COMMANDS = ("check", "golden", "analysis", "safety")
 
 def configure(args: argparse.Namespace) -> Settings:
     settings = Settings()
+    if not getattr(args, "fallback", False):
+        settings.llm_fallback_provider = "none"
     if getattr(args, "provider", None):
         settings.llm_provider = args.provider
     if getattr(args, "model", None):
@@ -88,6 +92,8 @@ def header(title: str, settings: Settings | None, started_at: str, label: str) -
                 else ""
             )
         )
+        if settings.llm_fallback_provider not in ("", "none"):
+            lines.append(f"- 폴백: {settings.llm_fallback_provider} (모델이 섞일 수 있다)")
     return lines
 
 
@@ -302,6 +308,7 @@ def golden_report(
     summary = golden_summary(results, mode, price)
     title = f"golden SQL 평가 ({'Tool Loop' if mode == 'loop' else f'단일 턴, effort={effort}'})"
     lines = header(title, settings, started_at, label)
+    lines += report.model_mix_warning([r.metrics for r in results if r.metrics])
     lines += [
         f"- 실행 정확도: **{summary['execution_accuracy']}%** "
         f"({summary['statuses'].get('match', 0)}/{summary['evaluated']})"
@@ -487,6 +494,7 @@ def analysis_report(
 ) -> tuple[Path, dict[str, Any]]:
     s = analysis_summary(results, price)
     lines = header("원인 분석 평가 (diagnose)", settings, started_at, label)
+    lines += report.model_mix_warning([r.metrics for r in results if r.metrics])
     lines += [
         f"- 통과(필요한 정답 사실 수 이상 언급): **{s['pass_rate']}%** "
         f"({sum(r.passed for r in results)}/{s['total']})",
@@ -808,7 +816,10 @@ def build_parser() -> argparse.ArgumentParser:
     common.add_argument("--ids", nargs="*", help="평가할 문항 id")
     common.add_argument("--ci", action="store_true", help="PR 회귀용 축소 평가셋 (ci: true 문항)")
     common.add_argument("--label", default="")
-    common.add_argument("--provider", help="LLM_PROVIDER 덮어쓰기 (exaone / groq)")
+    common.add_argument("--provider", help="LLM_PROVIDER 덮어쓰기 (groq / exaone / local)")
+    common.add_argument(
+        "--fallback", action="store_true", help="LLM_FALLBACK_PROVIDER 를 그대로 쓴다 (기본: 끔)"
+    )
     common.add_argument("--model", help="공급자 모델 id 덮어쓰기")
     common.add_argument("--knowledge", choices=["prompt", "rag"], help="KNOWLEDGE_MODE 덮어쓰기")
     common.add_argument("--quota", help="KNOWLEDGE_CONTEXT_QUOTA 덮어쓰기")
