@@ -11,6 +11,7 @@ GET  /agent/runs/{id}            실행 상세 (단계별 도구 호출, SQL, �
 POST /agent/runs/{id}/feedback   👍(1) / 👎(-1) + 코멘트
 """
 
+import asyncio
 import json
 import threading
 from collections.abc import AsyncIterator
@@ -21,13 +22,16 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 from pydantic.alias_generators import to_camel
 
+from app import metrics
 from app.agent.loop import AgentEvent, AgentLoop
 from app.agent.store import PostgresRunStore, build_run_store
 from app.auth import AuthUser, current_user
 from app.config import Settings, get_settings
 from app.knowledge.context import get_knowledge_context
 from app.llm import LLMError, build_llm_client
+from app.llm.pricing import Pricing
 from app.sql.executor import build_executor
+from app.tracing import NullTracer, Tracer, build_tracer
 
 router = APIRouter(prefix="/agent/runs")
 conversations_router = APIRouter(prefix="/agent/conversations")
@@ -67,7 +71,21 @@ def get_run_store(request: Request, settings: Settings = Depends(get_settings)) 
     return state.run_store
 
 
-def build_agent(settings: Settings, store: PostgresRunStore) -> AgentLoop:
+def get_tracer(request: Request, settings: Settings = Depends(get_settings)) -> Tracer | NullTracer:
+    state = request.app.state
+    with _build_lock:
+        if getattr(state, "tracer", None) is None:
+            state.tracer = build_tracer(settings)
+    return state.tracer
+
+
+def build_agent(
+    settings: Settings,
+    store: PostgresRunStore,
+    tracer: Tracer | NullTracer | None = None,
+    *,
+    own_tracer: bool = False,
+) -> AgentLoop:
     executor = build_executor(
         settings.dsn(read_only=True),
         token_dsn=settings.dsn(read_only=False),
@@ -88,6 +106,9 @@ def build_agent(settings: Settings, store: PostgresRunStore) -> AgentLoop:
         max_rows=settings.sql_max_rows,
         model_rows=settings.agent_tool_result_rows,
         knowledge=get_knowledge_context(settings),
+        tracer=tracer,
+        pricing=Pricing.from_settings(settings),
+        own_tracer=own_tracer,
     )
 
 
@@ -95,12 +116,13 @@ def get_agent(
     request: Request,
     settings: Settings = Depends(get_settings),
     store: PostgresRunStore = Depends(get_run_store),
+    tracer: Tracer | NullTracer = Depends(get_tracer),
 ) -> AgentLoop:
     state = request.app.state
     with _build_lock:
         if getattr(state, "agent", None) is None:
             try:
-                state.agent = build_agent(settings, store)
+                state.agent = build_agent(settings, store, tracer)
             except LLMError as e:
                 raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, str(e)) from None
     return state.agent
@@ -208,15 +230,24 @@ def get_run(
 
 
 @router.post("/{run_id}/feedback", status_code=status.HTTP_204_NO_CONTENT)
-def set_feedback(
+async def set_feedback(
     run_id: str,
     body: FeedbackRequest,
     user: AuthUser = Depends(current_user),
     store: PostgresRunStore = Depends(get_run_store),
+    tracer: Tracer | NullTracer = Depends(get_tracer),
 ) -> Response:
-    updated = store.set_feedback(
-        run_id, sdk_key=user.sdk_key, user_id=user.user_id, feedback=body.feedback, note=body.note
+    updated = await asyncio.to_thread(
+        store.set_feedback,
+        run_id,
+        sdk_key=user.sdk_key,
+        user_id=user.user_id,
+        feedback=body.feedback,
+        note=body.note,
     )
     if not updated:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "실행 기록이 없습니다.")
+    metrics.FEEDBACK.labels("up" if body.feedback > 0 else "down").inc()
+    # 트레이스 id 는 실행 id 와 같다. 트레이싱을 켜기 전의 실행은 점수를 붙일 트레이스가 없다
+    tracer.score(run_id, "user_feedback", float(body.feedback), comment=body.note)
     return Response(status_code=status.HTTP_204_NO_CONTENT)

@@ -29,6 +29,7 @@ from app.knowledge.context import close_knowledge_context, get_knowledge_context
 from app.llm import LLMError, build_llm_client
 from app.sql.executor import SQLExecutionError, SQLExecutor, build_executor
 from app.sql.guard import SQLRejected, guard
+from app.tracing import build_tracer
 from evals import datasets, report
 from evals.agent_runner import AgentTrace, CaptureStore, run_agent
 from evals.judges import LLMJudge, rule_judge
@@ -73,7 +74,16 @@ def make_agent(settings: Settings) -> tuple[Any, CaptureStore]:
     from app.api.runs import build_agent  # FastAPI 라우터 모듈이라 필요할 때만 불러온다
 
     store = CaptureStore()
-    return build_agent(settings, store), store
+    # LANGFUSE_* 가 설정돼 있으면 평가 실행도 트레이스로 남기되 사용자 실행과 환경(eval)으로 나눈다
+    tracer = build_tracer(settings, environment="eval")
+    return build_agent(settings, store, tracer, own_tracer=True), store
+
+
+def score_run(agent: Any, metrics: RunMetrics | None, name: str, value: float | None, comment=None):
+    """채점 결과를 Langfuse 트레이스의 점수로 남긴다 (트레이싱이 꺼져 있으면 아무 일도 없다)."""
+    if agent is None or metrics is None or not metrics.run_id or value is None:
+        return
+    agent.tracer.score(metrics.run_id, name, float(value), comment=comment)
 
 
 def run_gold(executor: SQLExecutor, sql: str, sdk_key: str):
@@ -180,6 +190,7 @@ async def evaluate_golden(
     executor = make_executor(settings)
     today = today_kst()
     results: list[GoldenResult] = []
+    agent = None
     if mode == "single":
         pipeline = TextToSQL(
             build_llm_client(settings),
@@ -204,6 +215,15 @@ async def evaluate_golden(
         for item in items:
             result = await run_one(item)
             results.append(result)
+            if mode == "loop":
+                score_run(
+                    agent,
+                    result.metrics,
+                    "execution_match",
+                    result.status == "match",
+                    result.reason or None,
+                )
+                score_run(agent, result.metrics, "any_step_match", result.any_step_match)
             print(
                 f"[{result.status:>10}] {result.id:<11} {result.latency_ms:>7}ms  {result.reason}"
             )
@@ -432,6 +452,9 @@ async def evaluate_analysis(
             out.passed = verdict.passed
             if judge is not None:
                 await _judge(out, judge, item, trace)
+            score_run(agent, out.metrics, "analysis_pass", out.passed)
+            score_run(agent, out.metrics, "fact_coverage", len(out.found) / len(item["facts"]))
+            score_run(agent, out.metrics, "judge_grounded", out.judge_grounded, out.judge_comment)
             results.append(out)
             print(
                 f"[{'pass' if out.passed else 'fail':>4}] {out.id:<8} {out.metrics.status:<16} "
@@ -588,6 +611,7 @@ async def evaluate_safety(
                 result.agent = check_agent(item, trace)
                 result.blocked_at = blocked_at(trace)
                 result.metrics = RunMetrics.of(trace)
+                score_run(agent, result.metrics, "safety_pass", result.passed, result.blocked_at)
                 result.steps = [
                     {
                         "seq": s["seq"],

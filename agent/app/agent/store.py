@@ -27,6 +27,7 @@ class RunTotals:
     latency_ms: int
     cost_usd: float | None = None
     error: str | None = None  # status=failed 일 때 사용자에게 보여 준 사유
+    trace_id: str | None = None  # Langfuse 트레이스 id (트레이싱을 켠 경우)
 
 
 class RunStore(Protocol):
@@ -117,7 +118,7 @@ class PostgresRunStore:
             conn.execute(
                 "UPDATE agent_runs SET status = %s, difficulty = %s, answer = %s, tool_calls = %s,"
                 " input_tokens = %s, output_tokens = %s, latency_ms = %s, cost_usd = %s,"
-                " error_message = %s WHERE id = %s",
+                " error_message = %s, trace_id = %s WHERE id = %s",
                 (
                     totals.status,
                     totals.difficulty,
@@ -128,6 +129,7 @@ class PostgresRunStore:
                     totals.latency_ms,
                     totals.cost_usd,
                     totals.error,
+                    totals.trace_id,
                     run_id,
                 ),
             )

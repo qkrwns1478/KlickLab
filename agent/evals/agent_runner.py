@@ -63,6 +63,10 @@ class AgentTrace:
         return next((e.data for e in self.events if e.type == type_), None)
 
     @property
+    def run_id(self) -> str:
+        return (self._first("started") or {}).get("runId", "")
+
+    @property
     def summary(self) -> dict[str, Any]:
         return self._first("done") or {}
 

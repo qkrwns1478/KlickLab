@@ -1,0 +1,295 @@
+# KlickLab 전체 스택: postgres + backend + agent + frontend + langfuse
+#
+#   cp .env.example .env     # JWT_SECRET, JWT_REFRESH_SECRET, GROQ_API_KEY 등을 채운다
+#   docker compose up -d --build
+#
+#   대시보드  http://localhost:8080      Langfuse  http://localhost:3000
+#   (선택) docker compose --profile monitoring up -d  →  Grafana :3001, Prometheus :9090
+#   API       http://localhost:4000      에이전트  http://localhost:8000  (메트릭 /metrics)
+#
+# 로컬 개발(백엔드·에이전트·프론트를 직접 실행)은 DB 만 띄우는 backend/docker-compose.yml 을 쓴다.
+# 이 파일과 동시에 띄우려면 DB_PORT 를 서로 다르게 둔다.
+#
+# 아래 비밀번호·키 기본값은 로컬 개발용이다. 외부에 노출하는 환경에서는 .env 로 모두 바꾼다.
+
+x-langfuse-env: &langfuse-env
+  DATABASE_URL: postgresql://langfuse:${LANGFUSE_DB_PASSWORD:-langfuse}@langfuse-db:5432/langfuse
+  SALT: ${LANGFUSE_SALT:-klicklab-dev-salt}
+  # 64자리 hex (32바이트). 바꾸면 저장된 LLM 키 등을 복호화할 수 없다
+  ENCRYPTION_KEY: ${LANGFUSE_ENCRYPTION_KEY:-0000000000000000000000000000000000000000000000000000000000000000}
+  TELEMETRY_ENABLED: "false"
+  CLICKHOUSE_MIGRATION_URL: clickhouse://clickhouse:9000
+  CLICKHOUSE_URL: http://clickhouse:8123
+  CLICKHOUSE_USER: clickhouse
+  CLICKHOUSE_PASSWORD: ${LANGFUSE_CLICKHOUSE_PASSWORD:-clickhouse}
+  CLICKHOUSE_CLUSTER_ENABLED: "false"
+  LANGFUSE_USE_AZURE_BLOB: "false"
+  LANGFUSE_S3_EVENT_UPLOAD_BUCKET: langfuse
+  LANGFUSE_S3_EVENT_UPLOAD_REGION: auto
+  LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID: minio
+  LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY: ${LANGFUSE_MINIO_PASSWORD:-miniosecret}
+  LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT: http://minio:9000
+  LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE: "true"
+  LANGFUSE_S3_EVENT_UPLOAD_PREFIX: events/
+  LANGFUSE_S3_MEDIA_UPLOAD_BUCKET: langfuse
+  LANGFUSE_S3_MEDIA_UPLOAD_REGION: auto
+  LANGFUSE_S3_MEDIA_UPLOAD_ACCESS_KEY_ID: minio
+  LANGFUSE_S3_MEDIA_UPLOAD_SECRET_ACCESS_KEY: ${LANGFUSE_MINIO_PASSWORD:-miniosecret}
+  LANGFUSE_S3_MEDIA_UPLOAD_ENDPOINT: http://minio:9000
+  LANGFUSE_S3_MEDIA_UPLOAD_FORCE_PATH_STYLE: "true"
+  LANGFUSE_S3_MEDIA_UPLOAD_PREFIX: media/
+  REDIS_HOST: redis
+  REDIS_PORT: "6379"
+  REDIS_AUTH: ${LANGFUSE_REDIS_PASSWORD:-redissecret}
+  REDIS_TLS_ENABLED: "false"
+
+services:
+  # --- 애플리케이션 -------------------------------------------------------
+
+  postgres:
+    image: pgvector/pgvector:pg17
+    environment:
+      POSTGRES_DB: klicklab
+      POSTGRES_USER: ${DB_USERNAME:-klicklab}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-klicklab}
+      TZ: Asia/Seoul
+      PGTZ: Asia/Seoul
+    ports:
+      - "127.0.0.1:${DB_PORT:-5432}:5432"
+    volumes:
+      - klicklab-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  backend:
+    build: ./backend
+    environment:
+      DB_URL: jdbc:postgresql://postgres:5432/klicklab
+      DB_USERNAME: ${DB_USERNAME:-klicklab}
+      DB_PASSWORD: ${DB_PASSWORD:-klicklab}
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET 을 .env 에 32바이트 이상으로 채운다}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:?JWT_REFRESH_SECRET 을 .env 에 32바이트 이상으로 채운다}
+      AUTH_AUTO_APPROVE: ${AUTH_AUTO_APPROVE:-false}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:8080,http://127.0.0.1:8080}
+      TZ: Asia/Seoul
+    ports:
+      - "${BACKEND_PORT:-4000}:4000"
+      - "${BACKEND_METRICS_PORT:-9091}:9091" # Actuator: /health, /metrics
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # 에이전트 전용 DB 롤은 Flyway(V4)가 NOLOGIN 으로 만든다. 백엔드가 마이그레이션을 마친 뒤 로그인을
+  # 열어 주는 일회성 작업이다 (README 의 수동 ALTER ROLE 과 같다).
+  agent-db-roles:
+    image: pgvector/pgvector:pg17
+    restart: "no"
+    environment:
+      PGPASSWORD: ${DB_PASSWORD:-klicklab}
+      DB_RO_PASSWORD: ${AGENT_DB_RO_PASSWORD:-agent_ro}
+      DB_RW_PASSWORD: ${AGENT_DB_RW_PASSWORD:-agent}
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        psql -h postgres -U ${DB_USERNAME:-klicklab} -d klicklab -v ON_ERROR_STOP=1 \
+          -v ro="$$DB_RO_PASSWORD" -v rw="$$DB_RW_PASSWORD" <<'SQL'
+        SELECT format('ALTER ROLE klicklab_agent_ro LOGIN PASSWORD %L', :'ro') \gexec
+        SELECT format('ALTER ROLE klicklab_agent LOGIN PASSWORD %L', :'rw') \gexec
+        SQL
+    depends_on:
+      backend:
+        condition: service_healthy
+
+  agent:
+    build:
+      context: ./agent
+      args:
+        WITH_EMBEDDING: ${AGENT_WITH_EMBEDDING:-false}
+    environment:
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      DB_NAME: klicklab
+      DB_RO_USER: klicklab_agent_ro
+      DB_RO_PASSWORD: ${AGENT_DB_RO_PASSWORD:-agent_ro}
+      DB_RW_USER: klicklab_agent
+      DB_RW_PASSWORD: ${AGENT_DB_RW_PASSWORD:-agent}
+      JWT_SECRET: ${JWT_SECRET}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:8080,http://127.0.0.1:8080}
+      LLM_PROVIDER: ${LLM_PROVIDER:-groq}
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
+      EXAONE_API_KEY: ${EXAONE_API_KEY:-}
+      # 호스트에서 실행 중인 Ollama (LLM_PROVIDER=local 또는 LLM_FALLBACK_PROVIDER=local)
+      LOCAL_BASE_URL: ${LOCAL_BASE_URL:-http://host.docker.internal:11434/v1}
+      LOCAL_MODEL: ${LOCAL_MODEL:-gpt-oss-20b-ctx32k}
+      LLM_FALLBACK_PROVIDER: ${LLM_FALLBACK_PROVIDER:-none}
+      KNOWLEDGE_MODE: ${KNOWLEDGE_MODE:-prompt}
+      EMBEDDING_PROVIDER: ${EMBEDDING_PROVIDER:-none}
+      LANGFUSE_HOST: http://langfuse-web:3000
+      LANGFUSE_PUBLIC_KEY: ${LANGFUSE_PUBLIC_KEY:-pk-lf-klicklab-dev}
+      LANGFUSE_SECRET_KEY: ${LANGFUSE_SECRET_KEY:-sk-lf-klicklab-dev}
+      LANGFUSE_ENVIRONMENT: ${LANGFUSE_ENVIRONMENT:-development}
+      TZ: Asia/Seoul
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "${AGENT_PORT:-8000}:8000"
+    depends_on:
+      agent-db-roles:
+        condition: service_completed_successfully
+      # 트레이싱은 선택 기능이라 Langfuse 가 준비되길 기다리지 않는다 (에이전트는 전송 실패를 무시한다)
+      langfuse-web:
+        condition: service_started
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "${FRONTEND_PORT:-8080}:80"
+    depends_on:
+      - backend
+      - agent
+
+  # --- Langfuse (self-host, v3) -------------------------------------------
+  # 트레이스·토큰·비용·점수를 본다. 프로젝트와 API 키는 아래 LANGFUSE_INIT_* 로 처음부터 만들어진다.
+  # 로그인: LANGFUSE_INIT_USER_EMAIL / LANGFUSE_INIT_USER_PASSWORD
+
+  langfuse-web:
+    image: langfuse/langfuse:3
+    environment:
+      <<: *langfuse-env
+      NEXTAUTH_URL: http://localhost:${LANGFUSE_PORT:-3000}
+      NEXTAUTH_SECRET: ${LANGFUSE_NEXTAUTH_SECRET:-klicklab-dev-nextauth-secret}
+      HOSTNAME: 0.0.0.0
+      LANGFUSE_INIT_ORG_ID: klicklab
+      LANGFUSE_INIT_ORG_NAME: KlickLab
+      LANGFUSE_INIT_PROJECT_ID: klicklab-agent
+      LANGFUSE_INIT_PROJECT_NAME: KlickLab Agent
+      LANGFUSE_INIT_PROJECT_PUBLIC_KEY: ${LANGFUSE_PUBLIC_KEY:-pk-lf-klicklab-dev}
+      LANGFUSE_INIT_PROJECT_SECRET_KEY: ${LANGFUSE_SECRET_KEY:-sk-lf-klicklab-dev}
+      LANGFUSE_INIT_USER_EMAIL: ${LANGFUSE_INIT_USER_EMAIL:-admin@klicklab.dev}
+      LANGFUSE_INIT_USER_NAME: admin
+      LANGFUSE_INIT_USER_PASSWORD: ${LANGFUSE_INIT_USER_PASSWORD:-klicklab-admin}
+      LANGFUSE_DISABLE_SIGNUP: "true"
+    ports:
+      - "127.0.0.1:${LANGFUSE_PORT:-3000}:3000"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000/api/public/health | grep -q OK"]
+      interval: 10s
+      timeout: 3s
+      retries: 20
+      start_period: 30s
+    depends_on: &langfuse-deps
+      langfuse-db:
+        condition: service_healthy
+      clickhouse:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  langfuse-worker:
+    image: langfuse/langfuse-worker:3
+    environment: *langfuse-env
+    depends_on: *langfuse-deps
+
+  langfuse-db:
+    image: postgres:17
+    environment:
+      POSTGRES_DB: langfuse
+      POSTGRES_USER: langfuse
+      POSTGRES_PASSWORD: ${LANGFUSE_DB_PASSWORD:-langfuse}
+    volumes:
+      - langfuse-db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U langfuse -d langfuse"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  clickhouse:
+    image: clickhouse/clickhouse-server:24.12
+    user: "101:101"
+    environment:
+      CLICKHOUSE_DB: default
+      CLICKHOUSE_USER: clickhouse
+      CLICKHOUSE_PASSWORD: ${LANGFUSE_CLICKHOUSE_PASSWORD:-clickhouse}
+    volumes:
+      - langfuse-clickhouse-data:/var/lib/clickhouse
+      - langfuse-clickhouse-logs:/var/log/clickhouse-server
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:8123/ping || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 1s
+
+  minio:
+    image: cgr.dev/chainguard/minio
+    entrypoint: sh
+    command: -c 'mkdir -p /data/langfuse && minio server --address ":9000" --console-address ":9001" /data'
+    environment:
+      MINIO_ROOT_USER: minio
+      MINIO_ROOT_PASSWORD: ${LANGFUSE_MINIO_PASSWORD:-miniosecret}
+    volumes:
+      - langfuse-minio-data:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 1s
+      timeout: 5s
+      retries: 5
+      start_period: 1s
+
+  redis:
+    image: redis:7
+    command: >
+      --requirepass ${LANGFUSE_REDIS_PASSWORD:-redissecret}
+      --maxmemory-policy noeviction
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a ${LANGFUSE_REDIS_PASSWORD:-redissecret} ping | grep -q PONG"]
+      interval: 3s
+      timeout: 10s
+      retries: 10
+
+  # --- 모니터링 (선택): docker compose --profile monitoring up -d ---------
+  # Prometheus 가 agent(/metrics)와 backend(:9091/metrics)를 수집하고, Grafana 에 대시보드가 미리 들어 있다.
+  # 기본 `docker compose up` 에는 포함되지 않는다.
+
+  prometheus:
+    image: prom/prometheus:v3.1.0
+    profiles: ["monitoring"]
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.retention.time=15d
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    ports:
+      - "127.0.0.1:${PROMETHEUS_PORT:-9090}:9090"
+
+  grafana:
+    image: grafana/grafana:11.4.0
+    profiles: ["monitoring"]
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-klicklab-admin}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
+    ports:
+      - "127.0.0.1:${GRAFANA_PORT:-3001}:3000"
+    depends_on:
+      - prometheus
+
+volumes:
+  prometheus-data:
+  grafana-data:
+  klicklab-pgdata:
+  langfuse-db:
+  langfuse-clickhouse-data:
+  langfuse-clickhouse-logs:
+  langfuse-minio-data:

@@ -92,11 +92,26 @@ class Settings(BaseSettings):
 
     anthropic_api_key: str = ""
 
+    # 관측 (Phase 6). host 와 키 두 개가 모두 있어야 Langfuse 로 트레이스를 보낸다
+    langfuse_host: str = ""  # 예: http://localhost:3000
+    langfuse_public_key: str = ""
+    langfuse_secret_key: str = ""
+    langfuse_environment: str = "development"  # 트레이스를 환경별로 나눈다 (평가는 eval)
+    langfuse_flush_interval_seconds: float = 1.0
+    langfuse_timeout_seconds: float = 10.0
+    metrics_enabled: bool = True  # GET /metrics (Prometheus)
+    # 토큰 단가 덮어쓰기: "모델=입력:출력,..." (USD / 100만 토큰). 기본값은 app/llm/pricing.py
+    llm_prices: str = ""
+
     # SQL 실행 제한
     sql_statement_timeout_ms: int = 5000
     sql_max_rows: int = 1000
     sql_result_rows: int = 200
     sql_max_plan_cost: float = 200_000.0
+
+    @property
+    def langfuse_enabled(self) -> bool:
+        return bool(self.langfuse_host and self.langfuse_public_key and self.langfuse_secret_key)
 
     @property
     def cors_origins(self) -> list[str]:

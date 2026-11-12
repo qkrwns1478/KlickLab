@@ -1,0 +1,14 @@
+# docker compose --profile monitoring 용 Prometheus 설정 (서비스 이름으로 컨테이너 네트워크 안에서 접근)
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  - job_name: klicklab-agent
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["agent:8000"]
+
+  - job_name: klicklab-backend
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["backend:9091"]

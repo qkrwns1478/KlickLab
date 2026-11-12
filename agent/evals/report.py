@@ -28,6 +28,7 @@ class Price:
 class RunMetrics:
     """에이전트 실행 한 번의 비용·과정 지표."""
 
+    run_id: str = ""  # agent_runs.id = Langfuse 트레이스 id
     status: str = ""
     difficulty: str | None = None  # 승격 후 최종 난이도
     initial_difficulty: str | None = None  # 분류기 결과
@@ -52,6 +53,7 @@ class RunMetrics:
         usage = summary.get("usage") or {}
         sql = trace.sql_stats()
         return cls(
+            run_id=trace.run_id,
             status=trace.status,
             difficulty=summary.get("difficulty"),
             initial_difficulty=trace.classified.get("difficulty"),

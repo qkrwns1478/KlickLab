@@ -332,9 +332,12 @@ CREATE TABLE agent_knowledge ( ... );       -- 6.4 참고
 
 ### Phase 6. 관측과 배포
 
-- [ ] Langfuse 연동 (트레이스, 토큰·비용, 평가 점수)
-- [ ] `agent/Dockerfile`, `docker-compose.yml`에 agent·langfuse 서비스 추가
-- [ ] AWS 배포 (ECS 또는 EC2 + RDS), 시크릿 관리, Prometheus 메트릭(`/metrics`) 노출
+- [x] Langfuse 연동 (트레이스, 토큰·비용, 평가 점수)
+- [x] `agent/Dockerfile`, `docker-compose.yml`에 agent·langfuse 서비스 추가 (backend·frontend 이미지 포함, 전체 기동 확인)
+- [ ] ~~AWS 배포 (ECS 또는 EC2 + RDS), 시크릿 관리~~ (실제 배포 계획이 없어 제외)
+- [x] Prometheus 메트릭(`/metrics`) 노출
+
+- 작업 로그: [Phase 6 관측과 Docker 구성](../logs/2026-11-12/04-에이전트_Phase6_관측과_Docker_구성.md)
 
 ## 8. 리스크와 대응
 

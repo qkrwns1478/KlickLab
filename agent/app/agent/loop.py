@@ -17,6 +17,7 @@ from dataclasses import dataclass, field
 from datetime import date
 from typing import Any
 
+from app import metrics
 from app.agent import prompts
 from app.agent.budget import Budget, Difficulty
 from app.agent.router import Router
@@ -45,7 +46,9 @@ from app.llm import (
     Usage,
     open_session,
 )
+from app.llm.pricing import Pricing
 from app.sql.executor import SQLExecutor
+from app.tracing import NullRunTrace, NullTracer, TracedLLM, label_generation, now
 
 log = logging.getLogger(__name__)
 
@@ -66,6 +69,31 @@ MAX_FINAL_ONLY_RETRIES = 2
 # 결론 제출은 이미 모은 근거로 쓰는 마지막 호출이라 예산이 끝난 뒤에도 이만큼은 기다린다.
 MIN_CALL_TIMEOUT_S = 30.0
 FINAL_CALL_TIMEOUT_S = 60.0
+
+# 메트릭의 tool 레이블 값. 모델이 지어낸 도구 이름이 레이블이 되지 않게 한다
+KNOWN_TOOLS = {
+    run_sql.NAME,
+    describe_table.NAME,
+    search_knowledge.NAME,
+    final_answer.NAME,
+    request_more_budget.NAME,
+}
+
+# 트레이스 메타데이터에 옮기는 실행 요약 항목
+TRACE_SUMMARY_KEYS = (
+    "difficulty",
+    "toolCalls",
+    "sqlRuns",
+    "llmCalls",
+    "formatErrors",
+    "rateLimitWaitMs",
+    "usage",
+    "latencyMs",
+    "costUsd",
+    "models",
+    "fallbackCalls",
+    "primaryError",
+)
 
 FORCE_FINAL = {"type": "function", "function": {"name": final_answer.NAME}}
 
@@ -105,6 +133,8 @@ class _Run:
     models: Counter[str] = field(default_factory=Counter)  # 모델별 호출 수
     fallback_calls: int = 0
     fallback_announced: bool = False
+    cost_usd: float | None = None  # 단가를 아는 모델의 호출 비용 합 (모르면 None)
+    trace: Any = field(default_factory=NullRunTrace)  # Langfuse 트레이스
 
 
 class AgentLoop:
@@ -122,7 +152,15 @@ class AgentLoop:
         clock: Callable[[], float] = time.monotonic,
         today: Callable[[], date] = today_kst,
         knowledge: KnowledgeContext | None = None,
+        tracer: Any = None,
+        pricing: Pricing | None = None,
+        own_tracer: bool = False,
     ):
+        # 앱은 트레이서를 여러 곳(피드백 점수)에서 함께 쓰므로 만든 쪽(lifespan)이 닫는다.
+        # 평가처럼 에이전트 전용으로 만든 트레이서만 aclose() 가 닫는다
+        self.tracer = tracer or NullTracer()
+        self._own_tracer = own_tracer
+        self._pricing = pricing or Pricing()
         self._llm = llm
         self._executor = executor
         self._store = store
@@ -172,8 +210,19 @@ class AgentLoop:
         except Exception:
             log.exception("agent_runs 생성 실패. 실행 로그 없이 진행한다.")
             run.run_id, run.persisted = str(uuid.uuid4()), False
+        if self.tracer.enabled:
+            run.trace = self.tracer.start(
+                run_id=run.run_id,
+                name="agent-run",
+                question=question,
+                user_id=user_id,
+                session_id=run.conversation_id,
+                metadata={"sdkKey": sdk_key, "persisted": run.persisted},
+            )
+            run.llm = TracedLLM(run.llm, run.trace, self._pricing)
         yield AgentEvent("started", {"runId": run.run_id, "conversationId": run.conversation_id})
 
+        metrics.RUNS_IN_PROGRESS.inc()
         try:
             async for event in self._execute(run):
                 yield event
@@ -188,15 +237,27 @@ class AgentLoop:
         finally:
             if run.status == "running":  # 클라이언트 연결 종료 등으로 중단됨
                 run.status, run.error = "failed", "실행이 중단되었습니다."
+            metrics.RUNS_IN_PROGRESS.dec()
             await self._finish(run)
         yield AgentEvent("done", self._summary(run))
 
     # ------------------------------------------------------------------
 
     async def _execute(self, run: _Run) -> AsyncIterator[AgentEvent]:
-        classification = await self._router.classify(run.question, run.history, llm=run.llm)
+        label_generation(run.llm, "classify")
+        try:
+            classification = await self._router.classify(run.question, run.history, llm=run.llm)
+        except LLMError as e:
+            metrics.record_llm_error(e.status)
+            raise
         run.usage += classification.usage
-        self._count_call(run, classification.model, classification.via_fallback)
+        self._count_call(
+            run,
+            classification.model,
+            classification.via_fallback,
+            classification.usage,
+            classification.latency_ms,
+        )
         if (event := self._fallback_event(run)) is not None:
             yield event
         run.difficulty = classification.difficulty
@@ -388,6 +449,7 @@ class AgentLoop:
         force: bool,
     ) -> ChatResult:
         run.llm_calls += 1
+        label_generation(run.llm, f"step-{run.llm_calls}")
         try:
             chat = await run.llm.chat(
                 messages,
@@ -400,9 +462,10 @@ class AgentLoop:
             )
         except LLMError as e:
             self._waited(run, budget, e.wait_ms)
+            metrics.record_llm_error(e.status)
             raise
         self._waited(run, budget, chat.wait_ms)
-        self._count_call(run, chat.model, chat.fallback)
+        self._count_call(run, chat.model, chat.fallback, chat.usage, chat.latency_ms)
         budget.time_factor = _time_factor(run.llm)
         run.usage += chat.usage
         budget.tokens += chat.usage.prompt_tokens + chat.usage.completion_tokens
@@ -410,11 +473,25 @@ class AgentLoop:
             run.chars_per_token = _chars(messages, tools) / chat.usage.prompt_tokens
         return chat
 
-    @staticmethod
-    def _count_call(run: _Run, model: str, fallback: bool) -> None:
-        run.models[model or getattr(run.llm, "model", "") or "unknown"] += 1
+    def _count_call(
+        self, run: _Run, model: str, fallback: bool, usage: Usage, latency_ms: int
+    ) -> None:
+        """모델별 호출 수·비용을 실행에 더하고 메트릭에 남긴다."""
+        model = model or getattr(run.llm, "model", "") or "unknown"
+        run.models[model] += 1
         if fallback:
             run.fallback_calls += 1
+        cost = self._pricing.cost(model, usage)
+        if cost is not None:
+            run.cost_usd = (run.cost_usd or 0.0) + cost.total
+        metrics.record_llm_call(
+            model,
+            prompt_tokens=usage.prompt_tokens,
+            completion_tokens=usage.completion_tokens,
+            fallback=fallback,
+            seconds=latency_ms / 1000,
+            cost=cost.total if cost else None,
+        )
 
     @staticmethod
     def _fallback_event(run: _Run) -> AgentEvent | None:
@@ -423,6 +500,9 @@ class AgentLoop:
             return None
         run.fallback_announced = True
         error = getattr(run.llm, "primary_error", None)
+        metrics.FALLBACK_RUNS.labels(run.llm.model or metrics.UNKNOWN).inc()
+        if error is not None:
+            metrics.record_llm_error(error.status)
         log.warning(
             "폴백 공급자로 진행 run_id=%s model=%s primary_status=%s",
             run.run_id,
@@ -472,6 +552,7 @@ class AgentLoop:
         yield AgentEvent("tool_call", {"seq": seq, "tool": call.name, "input": args})
 
         started = time.monotonic()
+        span_start = now()
         if parse_error:
             outcome = ToolOutcome.fail(parse_error)
         else:
@@ -490,6 +571,20 @@ class AgentLoop:
             final=outcome.final,
         )
         state.steps.append(step)
+        metrics.record_tool(
+            step.tool if step.tool in KNOWN_TOOLS else metrics.UNKNOWN,
+            ok=step.error is None,
+            seconds=step.duration_ms / 1000,
+        )
+        run.trace.span(
+            step.tool,
+            input=step.input,
+            output=step.output,
+            start=span_start,
+            end=now(),
+            metadata={"seq": seq, "charged": outcome.charged},
+            error=step.error,
+        )
         await self._persist_quietly(self._save_step, run, step)
         yield AgentEvent(
             "tool_result",
@@ -559,7 +654,21 @@ class AgentLoop:
             input_tokens=run.usage.prompt_tokens,
             output_tokens=run.usage.completion_tokens,
             latency_ms=self._latency_ms(run),
+            cost_usd=round(run.cost_usd, 6) if run.cost_usd is not None else None,
             error=run.error,
+            trace_id=run.run_id if self.tracer.enabled else None,
+        )
+        metrics.record_run(run.status, run.difficulty, totals.latency_ms / 1000)
+        summary = self._summary(run)
+        run.trace.end(
+            output=totals.answer if totals.answer else {"error": run.error},
+            status=run.status,
+            tags=[
+                t
+                for t in (run.difficulty, run.status, "fallback" if run.fallback_calls else None)
+                if t
+            ],
+            metadata={key: summary[key] for key in TRACE_SUMMARY_KEYS},
         )
         await self._persist_quietly(self._store.finish_run, run, totals)
 
@@ -596,10 +705,13 @@ class AgentLoop:
             "models": dict(run.models),
             "fallbackCalls": run.fallback_calls,
             "primaryError": _primary_status(run.llm),
+            "costUsd": round(run.cost_usd, 6) if run.cost_usd is not None else None,
         }
 
     async def aclose(self) -> None:
         await self._llm.aclose()
+        if self._own_tracer:
+            await self.tracer.aclose()
         await asyncio.to_thread(self._executor.close)  # 실행 로그 저장소는 앱이 따로 닫는다
 
 
