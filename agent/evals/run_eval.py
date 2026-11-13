@@ -297,7 +297,8 @@ async def _golden_loop(item, agent, store: CaptureStore, executor) -> GoldenResu
 
     ordered = bool(item.get("order_matters"))
     ok_steps = trace.sql_steps(ok=True)
-    if not ok_steps:
+    # 공급자 오류로 실행이 끝났다면 SQL 을 한 번 성공했더라도 모델의 결론이 아니므로 채점하지 않는다
+    if trace.error or not ok_steps:
         out.status = "llm_error" if trace.error else "no_sql"
         out.reason = trace.error or f"성공한 SQL 없음 ({trace.status})"
         return out

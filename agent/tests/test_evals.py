@@ -505,6 +505,24 @@ async def test_golden_loop_without_successful_sql():
     assert result.status == "no_sql"
 
 
+async def test_golden_loop_provider_error_after_successful_sql_is_not_scored():
+    from evals.run_eval import _golden_loop
+
+    @dataclass
+    class FailingAgent(ScriptedAgent):
+        async def run(self, question, *, sdk_key, user_id):
+            run_id = self.store.create_run(sdk_key=sdk_key, user_id=user_id, question=question)
+            yield AgentEvent("started", {"runId": run_id})
+            self.store.add_step(run_id, **self.steps[0])
+            yield AgentEvent("error", {"message": "LLM 사용 한도에 도달했습니다."})
+            yield AgentEvent("done", {"status": "failed", "difficulty": "lookup", "usage": {}})
+
+    store = CaptureStore()
+    agent = FailingAgent(store, [_sql_step(1, "SELECT 9", rows=[[9]])], {})
+    result = await _golden_loop(GOLD_ITEM, agent, store, FakeExecutor(_rows((575,))))
+    assert result.status == "llm_error" and "한도" in result.reason
+
+
 def test_golden_accuracy_excludes_provider_errors():
     from evals.run_eval import GoldenResult, golden_summary
 

@@ -186,6 +186,21 @@ async def test_does_not_retry_daily_limit():
     assert len(attempts) == 1
 
 
+async def test_does_not_retry_quota_exhausted_402():
+    attempts = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        attempts.append(1)
+        body = {"error": {"message": "no longer included", "code": "insufficient_quota"}}
+        return httpx.Response(402, json=body)
+
+    with pytest.raises(LLMError) as e:
+        await _client(handler, max_retries=3).chat([{"role": "user", "content": "q"}])
+    assert e.value.status == 402 and e.value.daily
+    assert len(attempts) == 1
+    assert "사용 한도" in e.value.user_message and "insufficient" not in e.value.user_message
+
+
 async def test_timeout_is_not_retried_and_reports_408():
     attempts = []
 

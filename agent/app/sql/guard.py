@@ -196,17 +196,49 @@ def _is_time_column(column: exp.Column, names: set[str]) -> bool:
     )
 
 
-def _has_column(node: exp.Expression | None) -> bool:
-    return node is not None and node.find(exp.Column) is not None
+def _has_column(node: exp.Expression | None, names: set[str]) -> bool:
+    """비교 상대에 바깥 행의 컬럼이 있는가.
+
+    FROM 이 있는 스칼라 서브쿼리(`(SELECT week_start FROM bounds)`) 안의 컬럼은 서브쿼리 자신의
+    테이블을 가리키므로 값으로 본다. 단 바깥 events 의 timestamp 를 가리킬 수 있는 컬럼
+    (바깥 이름으로 한정했거나, events 가 없는 서브쿼리 안의 한정 없는 timestamp)은 컬럼으로 본다.
+    """
+    if node is None:
+        return False
+    return any(_is_outer_column(c, node, names) for c in node.find_all(exp.Column))
+
+
+def _is_outer_column(column: exp.Column, root: exp.Expression, names: set[str]) -> bool:
+    select = _subquery_select(column, root)
+    if select is None or select.args.get("from_") is None:
+        return True
+    if column.name.lower() != "timestamp":
+        return False
+    inner = {t.alias_or_name.lower() for t in select.find_all(exp.Table)}
+    if column.table:
+        return column.table.lower() in names and column.table.lower() not in inner
+    return not any(t.name.lower() == "events" for t in select.find_all(exp.Table))
+
+
+def _subquery_select(column: exp.Column, root: exp.Expression) -> exp.Select | None:
+    """root 안에서 column 을 감싼 가장 가까운 서브쿼리의 SELECT."""
+    node = column.parent
+    while node is not None:
+        if isinstance(node, exp.Subquery) and isinstance(node.this, exp.Select):
+            return node.this
+        if node is root:
+            return None
+        node = node.parent
+    return None
 
 
 def _compares_time_to_value(predicate: exp.Expression, names: set[str]) -> bool:
     if isinstance(predicate, exp.Between):
         subject, others = predicate.this, [predicate.args.get("low"), predicate.args.get("high")]
-        return _mentions_time(subject, names) and not any(_has_column(o) for o in others)
+        return _mentions_time(subject, names) and not any(_has_column(o, names) for o in others)
     left, right = predicate.this, predicate.expression
-    return (_mentions_time(left, names) and not _has_column(right)) or (
-        _mentions_time(right, names) and not _has_column(left)
+    return (_mentions_time(left, names) and not _has_column(right, names)) or (
+        _mentions_time(right, names) and not _has_column(left, names)
     )
 
 

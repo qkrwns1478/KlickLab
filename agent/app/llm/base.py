@@ -25,7 +25,7 @@ class LLMError(Exception):
     @property
     def user_message(self) -> str:
         """사용자에게 보여 줄 문구. 공급자 응답 원문(조직 ID 등)은 담지 않고 로그에만 남긴다."""
-        if self.status == 429:
+        if self.status in (402, 429):
             return "LLM 사용 한도에 도달했습니다. 잠시 후 다시 시도해 주세요."
         if self.status == 408:
             return "LLM 응답이 지연되고 있습니다. 잠시 후 다시 시도해 주세요."

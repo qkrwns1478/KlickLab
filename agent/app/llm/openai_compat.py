@@ -234,7 +234,12 @@ def _tool_call(raw: dict[str, Any], index: int) -> ToolCall:
 
 
 def _daily_limit(response: httpx.Response) -> bool:
-    """하루 한도 초과 429 는 몇 분~몇 시간 뒤에야 풀리므로 재시도하지 않는다 (Groq TPD/RPD)."""
+    """오래 풀리지 않는 한도는 재시도하지 않는다.
+
+    하루 한도 초과 429 (Groq TPD/RPD), 크레딧·요금제 한도 소진 402 (insufficient_quota).
+    """
+    if response.status_code == 402:
+        return True
     return response.status_code == 429 and "per day" in response.text
 
 

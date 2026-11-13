@@ -46,6 +46,18 @@ from app.sql.guard import SQLRejected, guard
             "SELECT count(*) FROM agg_daily_users u JOIN events e ON e.client_id = u.client_id",
             "timestamp",
         ),
+        # 서브쿼리가 바깥 events 의 timestamp 를 가리키면 항상 참이다
+        ("SELECT count(*) FROM events WHERE timestamp >= (SELECT timestamp)", "timestamp"),
+        (
+            "WITH b AS (SELECT current_date AS s) "
+            "SELECT count(*) FROM events WHERE timestamp >= (SELECT timestamp FROM b)",
+            "timestamp",
+        ),
+        (
+            "WITH b AS (SELECT current_date AS s) "
+            "SELECT count(*) FROM events e WHERE e.timestamp >= (SELECT e.timestamp FROM b)",
+            "timestamp",
+        ),
         ("SELECT * FROM agg_page_daily LIMIT (SELECT 1)", "LIMIT"),
         ("SELEC * FROM agg_page_daily", ""),
     ],
@@ -71,6 +83,12 @@ def test_rejects(sql, reason):
         "SELECT * FROM daily_top_elements WHERE segment_type = 'device_type'",
         "SELECT count(*) FROM agg_daily_users u JOIN events e ON e.client_id = u.client_id "
         "AND e.timestamp >= current_date - 7",
+        # 기간 경계를 CTE 의 스칼라 서브쿼리로 둔 경우 (로컬 모델 compare-06)
+        "WITH b AS (SELECT date_trunc('week', current_date)::date AS s) "
+        "SELECT count(*) FROM events WHERE timestamp >= (SELECT s FROM b) - interval '7' "
+        "AND timestamp < (SELECT s FROM b)",
+        "SELECT count(*) FROM events WHERE timestamp >= (SELECT max(timestamp) - interval '1 day' "
+        "FROM events WHERE timestamp >= current_date - 7)",
     ],
 )
 def test_allows(sql):

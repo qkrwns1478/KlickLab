@@ -57,7 +57,7 @@ class Settings(BaseSettings):
 
     # 폴백: 기본 공급자가 한도 초과·장애로 실패하면 같은 요청을 대체 공급자에 보낸다
     llm_fallback_provider: str = "none"  # none | local
-    llm_fallback_statuses: str = "429,413,500,502,503,504"  # 408 을 넣으면 시간 초과도 넘긴다
+    llm_fallback_statuses: str = "402,429,413,500,502,503,504"  # 408 을 넣으면 시간 초과도 넘긴다
     # 폴백이 있을 때 기본 공급자의 재시도 대기 상한과 재시도 횟수. 더 기다려야 하면 바로 넘긴다
     llm_primary_max_wait_seconds: float = 5.0
     llm_primary_max_retries: int = 1
