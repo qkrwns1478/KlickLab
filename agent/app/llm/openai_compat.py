@@ -31,6 +31,8 @@ class OpenAICompatClient:
     time_factor, forced_tool_unreliable 은 에이전트 루프가 읽는 공급자 특성이다.
     """
 
+    path = "/chat/completions"
+
     def __init__(
         self,
         *,
@@ -105,20 +107,7 @@ class OpenAICompatClient:
                 body["tool_choice"] = tool_choice
 
         started = time.monotonic()
-        waited = [0.0]
-        try:
-            if self._semaphore is None:
-                response = await self._post_with_retry(body, waited, timeout)
-            else:
-                await self._semaphore.acquire()
-                waited[0] += time.monotonic() - started
-                try:
-                    response = await self._post_with_retry(body, waited, timeout)
-                finally:
-                    self._semaphore.release()
-        except LLMError as e:
-            e.wait_ms = int(waited[0] * 1000)
-            raise
+        response, waited = await self._send(body, timeout)
         data = response.json()
         try:
             choice = data["choices"][0]
@@ -149,11 +138,32 @@ class OpenAICompatClient:
                 or 0,
             ),
             latency_ms=int((time.monotonic() - started) * 1000),
-            wait_ms=int(waited[0] * 1000),
+            wait_ms=int(waited * 1000),
             tool_calls=[_tool_call(c, i) for i, c in enumerate(message.get("tool_calls") or [])],
             provider=self.provider,
             model=self.model,
         )
+
+    async def _send(
+        self, body: dict[str, Any], timeout: float | None
+    ) -> tuple[httpx.Response, float]:
+        """동시 실행 제한·요청 간격·재시도를 거쳐 보낸다. (응답, 기다린 초)."""
+        started = time.monotonic()
+        waited = [0.0]
+        try:
+            if self._semaphore is None:
+                response = await self._post_with_retry(body, waited, timeout)
+            else:
+                await self._semaphore.acquire()
+                waited[0] += time.monotonic() - started
+                try:
+                    response = await self._post_with_retry(body, waited, timeout)
+                finally:
+                    self._semaphore.release()
+        except LLMError as e:
+            e.wait_ms = int(waited[0] * 1000)
+            raise
+        return response, waited[0]
 
     async def _post_with_retry(
         self, body: dict[str, Any], waited: list[float], timeout: float | None = None
@@ -162,7 +172,7 @@ class OpenAICompatClient:
         for attempt in range(self._max_retries + 1):
             waited[0] += await self._throttle()
             try:
-                response = await self._http.post("/chat/completions", json=body, **options)
+                response = await self._http.post(self.path, json=body, **options)
             except httpx.TimeoutException as e:
                 raise LLMError(
                     f"LLM 응답 시간 초과 ({type(e).__name__})", status=TIMEOUT_STATUS

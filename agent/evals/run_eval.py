@@ -841,7 +841,7 @@ def build_parser() -> argparse.ArgumentParser:
     common.add_argument("--ids", nargs="*", help="평가할 문항 id")
     common.add_argument("--ci", action="store_true", help="PR 회귀용 축소 평가셋 (ci: true 문항)")
     common.add_argument("--label", default="")
-    common.add_argument("--provider", help="LLM_PROVIDER 덮어쓰기 (groq / exaone / local)")
+    common.add_argument("--provider", help="LLM_PROVIDER 덮어쓰기 (groq / exaone / openai / local)")
     common.add_argument(
         "--fallback", action="store_true", help="LLM_FALLBACK_PROVIDER 를 그대로 쓴다 (기본: 끔)"
     )

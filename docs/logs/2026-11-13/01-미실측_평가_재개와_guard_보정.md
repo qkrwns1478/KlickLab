@@ -75,11 +75,6 @@ Altare 402를 겪으며 확인한 공급자 한도 오류 처리의 빈틈을 �
 - `LLM_FALLBACK_STATUSES` 기본값에 402 추가. 로컬 폴백이 설정돼 있으면 402에서 로컬로 넘어간다.
 - 테스트 1건 추가(재시도 없음, 문구에 원문 미포함).
 
-## 검증
-
-- `pytest` 332건 통과, `ruff check`·`ruff format --check` 통과(Altare 철회 후).
-- `run_eval check`: 재시드 후 diag-01 1건 외 통과.
-
 ### 6. 평가 결과 (2026-11-13)
 
 공급자는 Groq(Tool Loop)와 로컬 gpt-oss-20b-ctx32k(단일 턴 44문항)로 나눴고, 둘은 동시에 돌렸다. 문항별 1회 실행이라 확률적 변동을 분리하지 못한다.
@@ -111,17 +106,117 @@ Altare 402를 겪으며 확인한 공급자 한도 오류 처리의 빈틈을 �
 - 입력 5,232 / 출력 1,104 토큰으로 질문 1건이 약 6.3K 토큰이다. 20문항이 약 127K라 Groq 무료 TPD 200K에서는 한 번에 20문항이 한계다.
 - guard 엄격화로 거절된 SQL은 이번 Groq 루프에서 없었다.
 
+
+### 7. OpenAI 공급자 추가와 gpt-6-luna 평가
+
+사용자가 `.env`에 `OPENAI_API_KEY`를 추가해 이 키로 진행하도록 요청했다. 모델은 `gpt-6-luna`다.
+
+#### 호환성 확인 (Chat Completions)
+
+| 요청 | 결과 |
+| --- | --- |
+| 기본 대화 | 200 |
+| `max_tokens` | 400: `max_completion_tokens`를 쓰라고 한다 |
+| `top_p` | 400: 지원하지 않음 |
+| `tools` + `reasoning_effort` (`tool_choice` required·함수 지정) | **400**: "Function tools with reasoning_effort are not supported … use /v1/responses or set reasoning_effort to 'none'" |
+
+- 에이전트 루프는 추론하면서 도구를 써야 하므로 Chat Completions로는 쓸 수 없다. `/v1/responses`에서는 도구 + `reasoning.effort`, 도구 결과를 넣은 다음 턴(서버 상태 저장 없이), 함수 지정 `tool_choice`, `temperature`가 모두 동작했다.
+- 응답 헤더 한도: 요청 30,000/분, 토큰 1억 8천만/분. 평가 중 429는 없었다.
+
+#### `OpenAIResponsesClient` (`app/llm/openai_responses.py`)
+
+- `OpenAICompatClient`를 상속해 요청 간격·재시도·시간 초과·한도 처리는 그대로 쓰고, 요청·응답 형식만 바꾼다. 이를 위해 기존 클라이언트의 전송부를 `_send()`로 분리하고 경로를 클래스 속성 `path`로 뺐다(동작 변화 없음).
+- 요청: 대화 이력(Chat Completions 형식)을 Responses 입력 항목으로 바꾼다. system/user/assistant 메시지는 그대로, assistant의 `tool_calls`는 `function_call`, `tool` 메시지는 `function_call_output`이다. 도구 스키마는 `function` 객체를 펼친 형식으로, 함수 지정 `tool_choice`는 `{"type": "function", "name": …}`로 바꾼다. `reasoning_effort` → `reasoning.effort`, `max_tokens` → `max_output_tokens`. `top_p`는 보내지 않고, `store=false`로 둔다.
+- 응답: `output`의 `message` 텍스트와 `function_call`을 `ChatResult`로 돌려준다. `status=incomplete`(`max_output_tokens`)는 `finish_reason="length"`로 맞춰 루프의 출력 잘림 처리를 그대로 탄다. 다음 턴 이력은 지금처럼 Chat Completions 형식으로 쌓이므로 루프·분류기·평가기는 바꾸지 않았다. 추론 항목(reasoning item)은 다음 턴에 다시 넣지 않는다.
+- 설정: `LLM_PROVIDER=openai`, `OPENAI_API_KEY`, `OPENAI_BASE_URL`(기본 `https://api.openai.com/v1`, 프록시를 쓰면 그 주소), `OPENAI_MODEL`(기본 `gpt-6-luna`), `OPENAI_MIN_INTERVAL_SECONDS`(기본 0). 기본 공급자는 groq 그대로다. 단가를 몰라 비용은 비워 둔다.
+- 테스트 6건(`tests/test_llm_responses.py`): 이력 변환, 파라미터 매핑, 도구 호출·사용량 파싱, 텍스트·출력 잘림, 재시도·오류·형식 오류, 공급자 조립.
+
+#### 결과 (gpt-6-luna, 2026-11-13 시드, 문항당 1회)
+
+**단일 턴 golden 44문항 (effort high)**
+
+| 컨텍스트 | 정확도 | compare | lookup | 스키마 요약 밖 지식 | 지연 평균 | 입력 / 출력(추론) 토큰 |
+| --- | --- | --- | --- | --- | --- | --- |
+| prompt | 93.2% (41/44) | 93.3% | 93.1% | 75.0% (4) | 4.6s | 1,796 / 436 (303) |
+| rag | 93.2% (41/44) | 80.0% | 100% | 100% | 5.0s | 2,116 / 336 (218) |
+| rag + expand=1 | 93.2% (41/44) | 80.0% | 100% | 100% | 5.0s | 2,323 / 333 (207) |
+
+- 세 방식의 정확도가 같다. 로컬 20B에서 보인 차이(rag 86.4% → expand 97.7%)가 이 모델에서는 나타나지 않았다. rag는 스키마 요약 밖 지식 문항(4개)과 lookup을 모두 맞혔고, 대신 compare에서 더 틀렸다.
+- expand=1에서도 events 컬럼 오류가 1건(compare-09 `day_type` 없음) 있었고, compare-11은 guard의 events 기간 조건 검사에서 거절됐다(원인 SQL은 확인하지 않음).
+- **expand=1의 효과는 모델에 따라 다르다**는 것이 이번 결과의 결론이다. 기본값(0)은 그대로 둔다.
+
+**Tool Loop golden 44문항 (prompt, `AGENT_MAX_PROMPT_TOKENS=0`)**
+
+- **90.9% (40/44)**: lookup 96.6%, compare 80.0%. 44문항 전체를 Tool Loop로 한 번에 돌린 첫 점수다.
+- 질문당 LLM 호출 2.0회, 입력 5,259 / 출력 602 토큰, 지연 평균 10.0s / 최대 18.0s. 예산 소진 0건, 첫 SQL 성공 97.7%. 루프 지표의 추론 토큰은 0으로 나오는데, 실행 지표가 추론 토큰을 모으지 않기 때문이다(Groq·로컬 리포트도 같다). 모델이 실제로 추론을 하지 않았다는 뜻은 아니다.
+- 오답 4건: compare-01, lookup-22, compare-11, compare-12.
+
+**원인 분석 11문항 (diag-02~12, LLM-as-judge = 각자 같은 모델)**
+
+| 항목 | gpt-6-luna | 로컬 gpt-oss-20b (같은 시드, 같은 11문항) |
+| --- | --- | --- |
+| 통과 (필요 사실 수 이상 언급) | **72.7% (8/11)** | 18.2% (2/11) |
+| 정답 사실 언급률 | 65.2% | 22.7% |
+| 근거 충실성 (judge) | 92.4% (11/11 채점) | 100% (7/11만 채점) |
+| 평균 주장 수 / 근거 검증에서 뺀 주장 | 3.5 / 0 | 1.1 / 9 |
+| 예산 소진 | 0% | 18.2% (강제 결론 2건) |
+| 지연 평균 | 48.9s | 48.9s |
+
+- gpt-6-luna가 놓친 문항: diag-05(소셜 영상 유입 이탈), diag-10(모바일 결제 장애), diag-11(회원 재방문). 로컬은 diag-08, diag-12만 통과했다.
+- 로컬 근거 충실성 100%는 주장이 남은 7문항만 본 값이다. 나머지 4문항은 근거 검증을 통과한 주장이 없어 채점 대상이 아니었다(정답 사실 33.3%). 충실성만 보고 로컬이 더 정확하다고 읽으면 안 된다.
+- 11-12 로컬 수치(41.7%, 12문항, 이전 시드)보다 오늘 로컬 결과(18.2%)가 낮다. 시드와 문항 구성이 달라 단순 비교는 안 되지만, 로컬 diagnose는 변동이 크다는 뜻이다.
+- 분류기가 diagnose 질문 11개 중 5개를 compare로 분류했다(로컬은 12개 중 6개). 분류 누락은 모델과 무관하게 반복된다.
+- 계획 01의 Phase 2 완료 기준("시드에 심은 원인을 근거 SQL과 함께 제시")은 이 모델에서 8/11 문항이 충족됐다. 심사 모델이 답변 모델과 같아서 근거 충실성은 낙관적일 수 있다. 로컬과의 비교는 위 표처럼 오늘 같은 시드로 측정했다.
+- diag-01은 시드 요일 문제로 제외했다(1절).
+
+**Tool Loop golden 44문항: 로컬 gpt-oss-20b와 비교 (prompt 모드, 같은 시드)**
+
+| 구간 | gpt-6-luna | 로컬 gpt-oss-20b | 참고: Groq gpt-oss-120b |
+| --- | --- | --- | --- |
+| 전체 44문항 | **90.9% (40/44)** | 79.1% (34/43, 1문항 서버 오류로 평가 불가) | 미측정 (TPD) |
+| compare | 80.0% (15) | 53.3% (15) | - |
+| lookup | 96.6% (29) | 92.9% (28) | - |
+| 앞 20문항 (11-12 비교 구간) | 95.0% (19/20) | 90.0% (18/20) | 85.0% (17/20, 공급자 오류 2건 포함) |
+| 나머지 24문항 | 87.5% (21/24) | 69.6% (16/23) | - |
+| 지연 평균 / 질문당 입력 토큰 | 10.0s / 5.3K | 19.8s / 10.3K | 40.9s(대기 포함) / 5.2K |
+
+- 로컬은 compare에서 크게 떨어진다(80.0% → 53.3%). 오답 8건 중 compare가 6건이다(compare-09, 10, 11, 12, 13, 15). compare-03은 성공한 SQL 없이 끝났다(`no_sql`). 예산 소진은 2.3%(1건)로 낮다.
+- 로컬 입력 토큰이 gpt-6-luna의 약 2배인 것은 첫 SQL 전 호출이 더 많고(질문당 LLM 호출 3.9회 vs 2.0회) 대화 이력이 누적되기 때문이다.
+- 앞 20문항만 보면 11-12 로컬 Tool Loop 95.0%(19/20)보다 낮은 90.0%(18/20)다. 같은 설정이지만 시드가 다르고 문항당 1회라 변동 범위로 본다. 11-12에 틀렸던 compare-06은 이번에 맞았고(guard 보정 후), lookup-09와 compare-03이 틀렸다.
+- 즉 **품질은 gpt-6-luna > 로컬 20B이고, 폴백으로서의 로컬 모델은 lookup 수준에서는 쓸 만하지만 compare부터 눈에 띄게 떨어진다.** 11-12에 정한 "폴백 허용 난이도 전체" 결정은, diagnose(18.2%)와 compare(53.3%)에서 품질이 낮다는 점을 이번 결과로 다시 보게 한다. 결정을 바꾸지는 않았다.
+
+**안전성 22문항 (에이전트 포함)**
+
+- gpt-6-luna **22/22 통과**: guard 100%, DB 계층 100%(21문항, 1문항 skip), 에이전트 100%. 처음 막은 곳은 분류기 17건, 모델 5건이다(11-12 Groq는 분류기 19건, 모델 3건).
+- 로컬 gpt-oss-20b도 **22/22 통과**: 처음 막은 곳은 분류기 17건, guard 2건, 모델 3건이다. 두 모델 모두 대부분을 분류기가 막으므로 방어가 분류기에 크게 의존한다는 11-12 지적은 그대로다.
+
+#### 문항 정의 검토 대상
+
+- **compare-12** ("지난달과 이번 달의 일평균 페이지뷰"): 이번 실행 4개(단일 턴 3, 루프 1)가 모두 틀렸다. 정답 SQL은 일부만 쌓인 오늘 데이터를 포함해 데이터가 있는 날의 평균을 내고, 모델은 오늘을 빼고 기간의 달력 일수로 나눴다. 질문만으로는 어느 쪽이 맞는지 정해지지 않는다.
+- **compare-01** ("지난주 대비 이번 주 유입 소스별 세션 수"): Tool Loop에서는 Groq와 gpt-6-luna가 모두 이번 주를 `summary_date < current_date`(오늘 제외)로 잡아 틀렸다. 단일 턴은 오늘을 포함해 맞혔다. 프롬프트 정의는 "이번 주 = 월요일부터(상한 없음)"이고 "오늘 데이터는 일부만 있다"는 안내가 함께 있다. 루프 모델이 이 안내를 보고 오늘을 뺀 것으로 **추정**한다.
+- 두 문항 모두 "오늘(부분 데이터)을 포함하는가"의 모호함이다. 질문에 명시하거나 정의를 하나로 정할지 결정이 필요하다. 점수를 맞추려고 지금 바꾸지는 않았다.
+
+#### 리포트
+
+- `20261113-1051-golden_sql-gpt-6-luna-high-openai-single-prompt`
+- `20261113-1055-golden_sql-gpt-6-luna-high-rag-openai-single-rag`
+- `20261113-1059-golden_sql-gpt-6-luna-high-rag-openai-single-rag-expand1`
+- `20261113-1051-golden_sql-gpt-6-luna-loop-openai-loop`
+- `20261113-1059-analysis-gpt-6-luna-openai-analysis`
+- `20261113-1109-safety-agent-openai-safety`
+- 로컬: `20261113-1137-golden_sql-gpt-oss-20b-ctx32k-loop-local-loop-44`, `20261113-1152-analysis-gpt-oss-20b-ctx32k-local-analysis-11`, `20261113-1201-safety-agent-local-safety`
+
 ## 검증
 
-- `pytest` 333건 통과, `ruff check`·`ruff format --check` 통과(평가기 수정 후).
+- `pytest` 339건 통과, `ruff check`·`ruff format --check` 통과.
 - `run_eval check`: 재시드 후 diag-01 1건 외 통과.
 
 ## 남은 것
 
-- **원인 분석(analysis) 평가**: Groq TPD가 소진돼 오늘은 실행하지 못했다. 로컬 단독 기준선(41.7%)만 있고 Groq 기준선이 없다. Groq 한도가 초기화된 뒤 diag-02~12를 돌리거나 한도 없는 환경을 쓴다.
-- Groq 단독 Tool Loop 44문항 전체, lookup-09·compare-06 재측정(평가기 수정 후 기준)
-- rag(+expand) Tool Loop 비교, 단일 턴 비교를 같은 모델(gpt-oss-120b)로 하는 것. 오늘 rag 비교는 로컬 20B 기준이다.
-- 반복 실행으로 expand=1의 효과(1회 측정)를 확인한 뒤 기본값을 정한다.
-- `AGENT_MAX_PROMPT_TOKENS` 상향(4,800 → 약 7,000)을 diagnose로 평가하는 것은 TPD 때문에 하지 못했다.
-- diag-01 시드 의존 문제(요일에 따라 성립 여부가 달라짐) 정리
-- GitHub Actions 실제 실행
+- compare-01·compare-12의 "오늘 포함 여부" 정의를 정하고 질문이나 정답 SQL을 고친다.
+- 분류기가 diagnose를 compare로 분류하는 문제(이번 5/11, 로컬 6/12)를 개선한다.
+- 루프 실행 지표에 추론 토큰을 모은다.
+- 로컬 모델의 compare·diagnose 품질 저하(53.3%, 18.2%)를 폴백 허용 난이도에 반영할지 정한다.
+- 문항당 1회 실행이라 방식 간 1~2문항 차이는 변동과 구분되지 않는다. 기본값(prompt, expand=0)을 바꾸려면 반복 실행이 필요하다.
+- Groq gpt-oss-120b의 원인 분석 기준선과 Tool Loop 44문항은 Groq TPD 때문에 아직 없다.
+- `AGENT_MAX_PROMPT_TOKENS` 상향 평가(Groq 한정 문제), diag-01 시드 의존 문제, GitHub Actions 실제 실행.

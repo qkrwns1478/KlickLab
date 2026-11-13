@@ -27,6 +27,12 @@ class Settings(BaseSettings):
     groq_model: str = "openai/gpt-oss-120b"
     # Groq 무료 등급 RPM 30 → 요청 간 2초
     groq_min_interval_seconds: float = 2.0
+    # OpenAI (Responses API). 추론하면서 도구를 쓰려면 Chat Completions 대신 /responses 를 쓴다.
+    # 프록시를 거치면 OPENAI_BASE_URL 을 그 주소(…/v1)로 둔다
+    openai_api_key: str = ""
+    openai_base_url: str = "https://api.openai.com/v1"
+    openai_model: str = "gpt-6-luna"
+    openai_min_interval_seconds: float = 0.0
     # 추론 토큰이 max_tokens 에 포함되므로 SQL 생성에는 넉넉하게 둔다
     llm_sql_max_tokens: int = 16384
     llm_sql_reasoning_effort: str = "high"

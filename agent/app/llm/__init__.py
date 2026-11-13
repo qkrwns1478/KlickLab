@@ -2,6 +2,7 @@ from app.config import Settings
 from app.llm.base import ChatResult, LLMClient, LLMError, ToolCall, Usage, open_session
 from app.llm.fallback import FallbackLLMClient, FallbackSession
 from app.llm.openai_compat import TIMEOUT_STATUS, OpenAICompatClient
+from app.llm.openai_responses import OpenAIResponsesClient
 
 __all__ = [
     "TIMEOUT_STATUS",
@@ -18,7 +19,7 @@ __all__ = [
     "open_session",
 ]
 
-PROVIDERS = ("groq", "exaone", "local")
+PROVIDERS = ("groq", "exaone", "openai", "local")
 
 
 def build_llm_client(settings: Settings) -> LLMClient:
@@ -81,6 +82,19 @@ def build_provider_client(
             default_params={"temperature": settings.llm_temperature, "top_p": settings.llm_top_p},
             timeout=settings.llm_timeout_seconds,
             min_interval=settings.groq_min_interval_seconds,
+            max_retries=retries,
+            max_retry_wait=max_retry_wait,
+        )
+    if provider == "openai":
+        if not settings.openai_api_key:
+            raise LLMError("OPENAI_API_KEY 가 설정되지 않았습니다.")
+        return OpenAIResponsesClient(
+            provider="openai",
+            base_url=settings.openai_base_url,
+            api_key=settings.openai_api_key,
+            model=settings.openai_model,
+            timeout=settings.llm_timeout_seconds,
+            min_interval=settings.openai_min_interval_seconds,
             max_retries=retries,
             max_retry_wait=max_retry_wait,
         )
