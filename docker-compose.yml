@@ -1,6 +1,6 @@
 # KlickLab 전체 스택: postgres + backend + agent + frontend + langfuse
 #
-#   cp .env.example .env     # JWT_SECRET, JWT_REFRESH_SECRET, GROQ_API_KEY 등을 채운다
+#   cp .env.example .env     # JWT_SECRET, JWT_REFRESH_SECRET, OPENAI_API_KEY 등을 채운다
 #   docker compose up -d --build
 #
 #   대시보드  http://localhost:8080      Langfuse  http://localhost:3000
@@ -118,9 +118,10 @@ services:
       DB_RW_PASSWORD: ${AGENT_DB_RW_PASSWORD:-agent}
       JWT_SECRET: ${JWT_SECRET}
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:8080,http://127.0.0.1:8080}
-      LLM_PROVIDER: ${LLM_PROVIDER:-groq}
-      GROQ_API_KEY: ${GROQ_API_KEY:-}
-      EXAONE_API_KEY: ${EXAONE_API_KEY:-}
+      LLM_PROVIDER: ${LLM_PROVIDER:-openai}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-https://api.openai.com/v1}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-6-luna}
       # 호스트에서 실행 중인 Ollama (LLM_PROVIDER=local 또는 LLM_FALLBACK_PROVIDER=local)
       LOCAL_BASE_URL: ${LOCAL_BASE_URL:-http://host.docker.internal:11434/v1}
       LOCAL_MODEL: ${LOCAL_MODEL:-gpt-oss-20b-ctx32k}

@@ -17,8 +17,9 @@ class Settings(BaseSettings):
     jwt_secret: str = ""
     cors_allowed_origins: str = "http://localhost:5173,http://127.0.0.1:5173"
 
-    # LLM (OpenAI 호환 Chat Completions). Phase 2 부터 기본값은 Groq gpt-oss-120b
-    llm_provider: str = "groq"
+    # LLM 공급자: openai(기본, 2026-11-25~) / local / groq / exaone.
+    # Groq·EXAONE 은 무료 한도(TPD 등) 때문에 평가·운영에 더 쓰지 않는다 (클라이언트는 비교용으로 남겨 둔다)
+    llm_provider: str = "openai"
     exaone_api_key: str = ""
     exaone_base_url: str = "https://api.exaone.ai/v1"
     exaone_model: str = "k-exaone_v2.5"

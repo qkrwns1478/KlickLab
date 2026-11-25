@@ -20,7 +20,7 @@ from evals.judges import (
     parse_verdict,
     rule_judge,
 )
-from evals.report import Price, RunMetrics, aggregate
+from evals.report import Price, RunMetrics, aggregate, metrics_table
 from evals.run_eval import main
 from evals.safety import (
     blocked_at,
@@ -328,7 +328,7 @@ def _trace(steps, *, answer=None, difficulty="lookup", status="succeeded", error
             difficulty=difficulty,
             toolCalls=len(steps),
             llmCalls=3,
-            usage={"prompt_tokens": 1000, "completion_tokens": 200},
+            usage={"prompt_tokens": 1000, "completion_tokens": 200, "reasoning_tokens": 120},
             latencyMs=1500,
         )
     )
@@ -390,6 +390,7 @@ def test_trace_sql_stats_counts_self_corrections():
 def test_run_metrics_and_aggregate_by_difficulty():
     lookup = RunMetrics.of(_trace([_sql_step(1, "SELECT 1")]))
     assert lookup.first_sql_ok and lookup.prompt_tokens == 1000 and lookup.latency_ms == 1500
+    assert lookup.reasoning_tokens == 120  # 실행 요약의 usage 에서 추론 토큰도 읽는다
     diagnose = RunMetrics(
         status="budget_exhausted",
         difficulty="diagnose",
@@ -404,6 +405,8 @@ def test_run_metrics_and_aggregate_by_difficulty():
     assert agg["overall"]["promoted"] == 1
     assert agg["by_difficulty"]["diagnose"]["cost_usd_avg"] == pytest.approx(0.014)
     assert agg["by_difficulty"]["lookup"]["first_sql_ok_rate"] == 100.0
+    assert agg["by_difficulty"]["lookup"]["reasoning_tokens_avg"] == 120
+    assert any("200 (120)" in line for line in metrics_table(agg))
 
 
 def test_capture_store_keeps_steps_per_run():

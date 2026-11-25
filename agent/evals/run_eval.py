@@ -293,6 +293,7 @@ async def _golden_loop(item, agent, store: CaptureStore, executor) -> GoldenResu
     out.latency_ms = metrics.latency_ms
     out.prompt_tokens = metrics.prompt_tokens
     out.completion_tokens = metrics.completion_tokens
+    out.reasoning_tokens = metrics.reasoning_tokens
     out.knowledge = trace.summary.get("knowledge") or []
 
     ordered = bool(item.get("order_matters"))

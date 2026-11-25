@@ -319,6 +319,7 @@ async def test_wait_before_fallback_is_reported_as_wait():
 
 
 def settings(**kwargs) -> Settings:
+    kwargs.setdefault("llm_provider", "groq")
     return Settings(_env_file=None, groq_api_key="g", **kwargs)
 
 

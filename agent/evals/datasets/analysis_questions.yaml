@@ -10,19 +10,20 @@
 
 - id: diag-01
   ci: true
-  question: 지난주 대비 이번 주 참여도가 떨어진 페이지를 찾고, 원인을 분석해 줘
+  # 캠페인은 시드 실행일 기준 2~8일 전이다. 달력 주(지난주·이번 주)로 물으면 요일에 따라 캠페인이 두 주에
+  # 걸쳐 패턴이 성립하지 않으므로, 캠페인 기간과 같은 상대 기간(그 전 7일 = 2~8일 전)으로 묻는다
+  question: 어제는 그 전 7일보다 참여도가 떨어진 페이지가 있어? 있다면 원인을 분석해 줘
   required: 1
   facts:
     - id: campaign_ended
-      description: nov_mega_sale 캠페인 유입이 지난주에 몰렸고 이번 주에는 줄었다
+      description: nov_mega_sale 캠페인 유입이 그 전 7일에 몰렸고 어제는 줄었다
       keywords: [[nov_mega_sale, 메가세일, 캠페인]]
       check_sql: |
-        SELECT sum(sessions) FILTER (WHERE summary_date < date_trunc('week', current_date)::date) / 7.0
-                 > 2 * sum(sessions) FILTER (WHERE summary_date >= date_trunc('week', current_date)::date)
-                       / greatest(current_date - date_trunc('week', current_date)::date + 1, 1) AS ok
+        SELECT sum(sessions) FILTER (WHERE summary_date < current_date - 1) / 7.0
+                 > 2 * coalesce(sum(sessions) FILTER (WHERE summary_date = current_date - 1), 0) AS ok
         FROM agg_traffic_hourly
         WHERE traffic_campaign = 'nov_mega_sale'
-          AND summary_date >= date_trunc('week', current_date)::date - 7
+          AND summary_date >= current_date - 8 AND summary_date < current_date
 
 - id: diag-02
   ci: true

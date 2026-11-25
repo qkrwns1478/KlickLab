@@ -78,9 +78,11 @@ time_on_page_seconds, properties jsonb)
 ## 기간 표현
 - 오늘 = current_date (오늘 데이터는 아직 일부만 있다), 어제 = current_date - 1
 - 최근 N일 = 오늘을 제외한 N일: summary_date >= current_date - N AND summary_date < current_date
-- 이번 주 = 월요일 시작: summary_date >= date_trunc('week', current_date)::date
+- 이번 주 = 월요일 시작, 오늘까지: summary_date >= date_trunc('week', current_date)::date (상한 없음)
 - 지난주 = summary_date >= date_trunc('week', current_date)::date - 7 AND summary_date < date_trunc('week', current_date)::date
-- 이번 달 = summary_date >= date_trunc('month', current_date)::date
+- 이번 달 = 오늘까지: summary_date >= date_trunc('month', current_date)::date (상한 없음)
+- 이번 주·이번 달에는 오늘(부분 데이터)도 넣는다. 오늘을 빼는 것은 "최근 N일"뿐이다
+- 기간의 일평균 = 날짜별 합계를 먼저 구한 뒤 avg() 한다 (데이터가 있는 날짜 기준, 달력 일수로 나누지 않는다)
 - 날짜는 상수 대신 current_date 기준 상대 표현으로 쓴다
 """
 
@@ -147,9 +149,16 @@ def answer_messages(question: str, sql: str, result_json: str) -> list[dict[str,
 CLASSIFY_SYSTEM_PROMPT = """\
 너는 KlickLab(웹사이트 클릭스트림 분석 서비스)의 질문 분류기다. 사용자의 질문을 아래 중 하나로 분류한다.
 
-- lookup: 지표 하나를 한 기간·한 조건으로 조회하면 끝나는 질문. 예: "어제 방문자 수는?", "최근 7일 페이지뷰 상위 5개 페이지"
-- compare: 두 기간·여러 그룹을 비교하거나 추이를 보는 질문. 예: "지난주 대비 이번 주 채널별 전환율 변화"
-- diagnose: 변화의 원인이나 이상 징후를 찾기 위해 여러 번 조회·드릴다운해야 하는 질문. 예: "참여도가 떨어진 페이지와 원인을 분석해 줘"
+- lookup: 정해진 지표를 한 기간에 한 번 조회하면 끝나는 질문. 한 지표의 일별 추이, 한 기준의 그룹별 집계·상위 N개도
+  여기에 든다. 예: "어제 방문자 수는?", "최근 7일 페이지뷰 상위 5개 페이지", "최근 7일 일별 페이지뷰 추이"
+- compare: 정해진 지표를 두 기간이나 여러 그룹 사이에서 비교하는 질문. 볼 지표가 질문에 나와 있고 한두 번의
+  조회로 답이 나온다. 예: "지난주 대비 이번 주 채널별 전환율 변화", "세션 100개 이상인 채널 중 전환율 상위 3개"
+- diagnose: 한두 번의 조회로 끝나지 않고 여러 지표를 조회·드릴다운해야 하는 질문. 다음 중 하나면 diagnose 다.
+  * 원인·이유·근거를 묻는다 ("왜", "이유", "원인", "근거와 함께")
+  * 볼 지표가 정해지지 않은 열린 질문이라 어떤 지표로 볼지부터 정해야 한다 ("방문 행동·패턴이 어떻게 달라?",
+    "구매 의도가 높은 채널", "캠페인 성과를 평가해 줘")
+  * 이상 징후를 찾는다 ("갑자기 멈춘 날이 있었어?")
+  예: "참여도가 떨어진 페이지와 원인을 분석해 줘", "회원과 비회원은 방문 행동이 어떻게 달라?"
 - out_of_scope: 사이트 분석 데이터 조회로 답할 수 없는 질문(일반 상식, 잡담, 코드 작성), 데이터 변경·삭제 요청,
   회원 계정 정보·다른 사이트 데이터 요청
 

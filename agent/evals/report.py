@@ -41,6 +41,7 @@ class RunMetrics:
     format_errors: int = 0
     prompt_tokens: int = 0
     completion_tokens: int = 0
+    reasoning_tokens: int = 0  # completion_tokens 에 포함된 추론 토큰 (공급자가 알려 줄 때만)
     latency_ms: int = 0
     wait_ms: int = 0
     error: str | None = None
@@ -66,6 +67,7 @@ class RunMetrics:
             format_errors=summary.get("formatErrors", 0),
             prompt_tokens=usage.get("prompt_tokens", 0),
             completion_tokens=usage.get("completion_tokens", 0),
+            reasoning_tokens=usage.get("reasoning_tokens", 0),
             latency_ms=summary.get("latencyMs", 0),
             wait_ms=summary.get("rateLimitWaitMs", 0),
             error=trace.error,
@@ -106,6 +108,7 @@ def aggregate(metrics: list[RunMetrics], price: Price = FREE) -> dict[str, Any]:
             "llm_calls_avg": _avg([m.llm_calls for m in ms]),
             "prompt_tokens_avg": round(_avg([m.prompt_tokens for m in ms])),
             "completion_tokens_avg": round(_avg([m.completion_tokens for m in ms])),
+            "reasoning_tokens_avg": round(_avg([m.reasoning_tokens for m in ms])),
             "cost_usd_avg": round(
                 statistics.mean([price.cost(m.prompt_tokens, m.completion_tokens) for m in ms]), 6
             )
@@ -139,7 +142,7 @@ def _rate(flags: list[bool]) -> float:
 def metrics_table(agg: dict[str, Any]) -> list[str]:
     """난이도별 비용·지연 Markdown 표."""
     lines = [
-        "| 난이도 | n | 툴 호출 | LLM 호출 | 입력 토큰 | 출력 토큰 | 비용(USD) "
+        "| 난이도 | n | 툴 호출 | LLM 호출 | 입력 토큰 | 출력(추론) 토큰 | 비용(USD) "
         "| 지연 평균/중앙값(ms) | 예산 소진 | SQL 1회 성공 | 자가 수정 |",
         "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |",
     ]
@@ -148,7 +151,8 @@ def metrics_table(agg: dict[str, Any]) -> list[str]:
         first = "-" if s["first_sql_ok_rate"] is None else f"{s['first_sql_ok_rate']}%"
         lines.append(
             f"| {name} | {s['n']} | {s['tool_calls_avg']} | {s['llm_calls_avg']} "
-            f"| {s['prompt_tokens_avg']:,} | {s['completion_tokens_avg']:,} | {s['cost_usd_avg']} "
+            f"| {s['prompt_tokens_avg']:,} | {s['completion_tokens_avg']:,}"
+            f" ({s.get('reasoning_tokens_avg', 0):,}) | {s['cost_usd_avg']} "
             f"| {s['latency_ms_avg']:,} / {s['latency_ms_p50']:,} | {s['budget_exhausted_rate']}% "
             f"| {first} | {s['corrections_avg']} |"
         )
