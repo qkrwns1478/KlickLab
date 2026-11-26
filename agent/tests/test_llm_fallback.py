@@ -526,3 +526,11 @@ async def test_ollama_tool_parse_error_is_a_format_error_not_an_outage():
     # 루프의 tool_use_failed 재시도 경로로 가도록 400 으로 바꾼다 (한도 초과 문구로 숨기지 않는다)
     assert e.value.status == 400 and "tool_use_failed" in str(e.value)
     assert len(local.requests) == 1
+
+
+def test_max_prompt_tokens_follows_providers_unless_set():
+    assert settings().max_prompt_tokens == 4800  # groq
+    assert settings(llm_provider="openai").max_prompt_tokens == 0
+    assert settings(llm_provider="openai", llm_fallback_provider="local").max_prompt_tokens == 24576
+    assert settings(llm_provider="local", local_num_ctx=8192).max_prompt_tokens == 6144
+    assert settings(llm_provider="openai", agent_max_prompt_tokens=9000).max_prompt_tokens == 9000

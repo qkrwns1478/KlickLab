@@ -1,0 +1,616 @@
+{
+  "kind": "analysis",
+  "model": "gpt-oss-20b-ctx32k",
+  "judge_model": "gpt-6-luna",
+  "label": "local-analysis",
+  "started_at": "2026-11-26T09:42:24+09:00",
+  "knowledge_mode": "prompt",
+  "summary": {
+    "total": 12,
+    "pass_rate": 33.3,
+    "fact_coverage": 29.2,
+    "judge_grounded": 59.4,
+    "judge_fact_coverage": 12.5,
+    "judged": 8,
+    "findings_avg": 1.2,
+    "dropped_findings": 4,
+    "forced_answers": 2,
+    "agent": {
+      "overall": {
+        "n": 12,
+        "tool_calls_avg": 7.2,
+        "llm_calls_avg": 8.3,
+        "prompt_tokens_avg": 29084,
+        "completion_tokens_avg": 4874,
+        "reasoning_tokens_avg": 0,
+        "cost_usd_avg": 0.0,
+        "latency_ms_avg": 66394,
+        "latency_ms_p50": 59508,
+        "wait_ms_avg": 0,
+        "budget_exhausted_rate": 16.7,
+        "failed_rate": 0.0,
+        "first_sql_ok_rate": 91.7,
+        "corrections_avg": 0.5,
+        "promoted": 0
+      },
+      "by_difficulty": {
+        "compare": {
+          "n": 1,
+          "tool_calls_avg": 4,
+          "llm_calls_avg": 4,
+          "prompt_tokens_avg": 11979,
+          "completion_tokens_avg": 2768,
+          "reasoning_tokens_avg": 0,
+          "cost_usd_avg": 0.0,
+          "latency_ms_avg": 33859,
+          "latency_ms_p50": 33859,
+          "wait_ms_avg": 0,
+          "budget_exhausted_rate": 0.0,
+          "failed_rate": 0.0,
+          "first_sql_ok_rate": 100.0,
+          "corrections_avg": 0,
+          "promoted": 0
+        },
+        "diagnose": {
+          "n": 11,
+          "tool_calls_avg": 7.5,
+          "llm_calls_avg": 8.7,
+          "prompt_tokens_avg": 30639,
+          "completion_tokens_avg": 5066,
+          "reasoning_tokens_avg": 0,
+          "cost_usd_avg": 0.0,
+          "latency_ms_avg": 69352,
+          "latency_ms_p50": 62297,
+          "wait_ms_avg": 0,
+          "budget_exhausted_rate": 18.2,
+          "failed_rate": 0.0,
+          "first_sql_ok_rate": 90.9,
+          "corrections_avg": 0.5,
+          "promoted": 0
+        }
+      }
+    }
+  },
+  "items": [
+    {
+      "id": "diag-01",
+      "question": "어제는 그 전 7일보다 참여도가 떨어진 페이지가 있어? 있다면 원인을 분석해 줘",
+      "passed": false,
+      "found": [],
+      "missing": [
+        "campaign_ended"
+      ],
+      "required": 1,
+      "values": {},
+      "summary": "예산 안에서 결론을 정리하지 못했습니다. 실행한 조회 결과는 실행 단계에서 확인할 수 있습니다.",
+      "findings": 0,
+      "dropped_findings": 0,
+      "forced": true,
+      "judge_grounded": null,
+      "judge_fact_coverage": null,
+      "judge_comment": "",
+      "judge_error": "채점할 주장이 없음",
+      "unsupported_claims": [],
+      "metrics": {
+        "run_id": "381a529a-47ea-4d97-8dc2-50700530ea84",
+        "status": "budget_exhausted",
+        "difficulty": "diagnose",
+        "initial_difficulty": "diagnose",
+        "tool_calls": 12,
+        "sql_attempts": 11,
+        "sql_failures": 6,
+        "first_sql_ok": true,
+        "corrections": 2,
+        "llm_calls": 15,
+        "format_errors": 0,
+        "prompt_tokens": 63996,
+        "completion_tokens": 11152,
+        "reasoning_tokens": 0,
+        "latency_ms": 178688,
+        "wait_ms": 0,
+        "error": null,
+        "models": {
+          "gpt-oss-20b-ctx32k": 16
+        },
+        "fallback_calls": 0
+      }
+    },
+    {
+      "id": "diag-02",
+      "question": "최근 한 달 동안 모바일 결제가 갑자기 멈춘 날이 있었어? 있었다면 언제, 결제 흐름의 어느 단계에서 끊겼는지 알려줘",
+      "passed": true,
+      "found": [
+        "outage_date",
+        "outage_step"
+      ],
+      "missing": [],
+      "required": 2,
+      "values": {
+        "iso": "2026-11-11",
+        "kr": "11월 11일",
+        "md": "11-11",
+        "slash": "11/11"
+      },
+      "summary": "네, 2026-11-11에 모바일 결제가 갑자기 멈췄으며, add_to_cart 이벤트는 있었으나 is_payment 이벤트가 없어서 결제 완료 단계에서 끊겼습니다.",
+      "findings": 1,
+      "dropped_findings": 0,
+      "forced": false,
+      "judge_grounded": 0.0,
+      "judge_fact_coverage": 0.5,
+      "judge_comment": "결제 0건인 날짜는 정확히 짚었지만, 제공된 결과에는 checkout 단계별 흐름이 없어 중단 지점까지 답했다고 볼 수 없습니다.",
+      "judge_error": null,
+      "unsupported_claims": [
+        "1: 결과에서 2026-11-11의 모바일 결제 건수가 0이고 add_to_cart가 46건인 것은 확인됩니다. 하지만 이 결과만으로 /checkout에 도달한 뒤 /checkout/success로 넘어가지 못했다고 확인할 수는 없습니다."
+      ],
+      "metrics": {
+        "run_id": "b5b25ee9-fb26-477c-a4e7-ae8ed3aede52",
+        "status": "succeeded",
+        "difficulty": "diagnose",
+        "initial_difficulty": "diagnose",
+        "tool_calls": 4,
+        "sql_attempts": 2,
+        "sql_failures": 0,
+        "first_sql_ok": true,
+        "corrections": 0,
+        "llm_calls": 4,
+        "format_errors": 0,
+        "prompt_tokens": 12703,
+        "completion_tokens": 3060,
+        "reasoning_tokens": 0,
+        "latency_ms": 37592,
+        "wait_ms": 0,
+        "error": null,
+        "models": {
+          "gpt-oss-20b-ctx32k": 5
+        },
+        "fallback_calls": 0
+      }
+    },
+    {
+      "id": "diag-03",
+      "question": "화요일마다 방문자가 늘어나는 이유는 뭐야?",
+      "passed": false,
+      "found": [],
+      "missing": [
+        "newsletter"
+      ],
+      "required": 1,
+      "values": {},
+      "summary": "예산 안에서 결론을 정리하지 못했습니다. 실행한 조회 결과는 실행 단계에서 확인할 수 있습니다.",
+      "findings": 0,
+      "dropped_findings": 0,
+      "forced": true,
+      "judge_grounded": null,
+      "judge_fact_coverage": null,
+      "judge_comment": "",
+      "judge_error": "채점할 주장이 없음",
+      "unsupported_claims": [],
+      "metrics": {
+        "run_id": "427ab070-4d11-44b1-997a-4e8a83a20f8a",
+        "status": "budget_exhausted",
+        "difficulty": "diagnose",
+        "initial_difficulty": "diagnose",
+        "tool_calls": 10,
+        "sql_attempts": 8,
+        "sql_failures": 0,
+        "first_sql_ok": true,
+        "corrections": 0,
+        "llm_calls": 14,
+        "format_errors": 0,
+        "prompt_tokens": 51534,
+        "completion_tokens": 5630,
+        "reasoning_tokens": 0,
+        "latency_ms": 72000,
+        "wait_ms": 0,
+        "error": null,
+        "models": {
+          "gpt-oss-20b-ctx32k": 15
+        },
+        "fallback_calls": 0
+      }
+    },
+    {
+      "id": "diag-04",
+      "question": "최근 일주일 사이 신규 방문자가 크게 늘어난 원인을 찾아줘",
+      "passed": false,
+      "found": [],
+      "missing": [
+        "campaign",
+        "campaign_sources"
+      ],
+      "required": 1,
+      "values": {},
+      "summary": "지난 주(11‑21) 신규 방문자 수가 크게 늘어난 것은 naver와 direct 같은 직접 유입 채널의 세션이 급증했기 때문으로 해석된다. 이러한 채널에서의 체류와 전환이 신규 방문자 수 증가에 기여한 것으로 보인다.",
+      "findings": 0,
+      "dropped_findings": 3,
+      "forced": false,
+      "judge_grounded": null,
+      "judge_fact_coverage": null,
+      "judge_comment": "",
+      "judge_error": "채점할 주장이 없음",
+      "unsupported_claims": [],
+      "metrics": {
+        "run_id": "75a224c5-1cff-441b-bbd4-58592d8331bd",
+        "status": "succeeded",
+        "difficulty": "diagnose",
+        "initial_difficulty": "diagnose",
+        "tool_calls": 12,
+        "sql_attempts": 9,
+        "sql_failures": 2,
+        "first_sql_ok": true,
+        "corrections": 1,
+        "llm_calls": 12,
+        "format_errors": 0,
+        "prompt_tokens": 45401,
+        "completion_tokens": 4885,
+        "reasoning_tokens": 0,
+        "latency_ms": 62297,
+        "wait_ms": 0,
+        "error": null,
+        "models": {
+          "gpt-oss-20b-ctx32k": 13
+        },
+        "fallback_calls": 0
+      }
+    },
+    {
+      "id": "diag-05",
+      "question": "이탈률이 특히 높은 유입 채널은 어디고, 다른 채널과 얼마나 차이 나?",
+      "passed": false,
+      "found": [],
+      "missing": [
+        "social_video_bounce"
+      ],
+      "required": 1,
+      "values": {},
+      "summary": "이탈률이 가장 높은 유입 채널은 유투브이며, 페이스북 대비 약 10%포인트 차이가 납니다.",
+      "findings": 1,
+      "dropped_findings": 0,
+      "forced": false,
+      "judge_grounded": 1.0,
+      "judge_fact_coverage": 0.0,
+      "judge_comment": "유튜브가 가장 높고 페이스북과 10%포인트 차이라는 주장은 결과로 확인된다. 정답 사실에 포함된 인스타그램은 답변에서 언급되지 않았다.",
+      "judge_error": null,
+      "unsupported_claims": [],
+      "metrics": {
+        "run_id": "00fde4da-773d-4790-81a7-926f778a596d",
+        "status": "succeeded",
+        "difficulty": "compare",
+        "initial_difficulty": "compare",
+        "tool_calls": 4,
+        "sql_attempts": 1,
+        "sql_failures": 0,
+        "first_sql_ok": true,
+        "corrections": 0,
+        "llm_calls": 4,
+        "format_errors": 0,
+        "prompt_tokens": 11979,
+        "completion_tokens": 2768,
+        "reasoning_tokens": 0,
+        "latency_ms": 33859,
+        "wait_ms": 0,
+        "error": null,
+        "models": {
+          "gpt-oss-20b-ctx32k": 5
+        },
+        "fallback_calls": 0
+      }
+    },
+    {
+      "id": "diag-06",
+      "question": "구매 의도가 높은 유입 채널은 어디야? 근거와 함께 알려줘",
+      "passed": false,
+      "found": [],
+      "missing": [
+        "email",
+        "naver_cpc"
+      ],
+      "required": 1,
+      "values": {},
+      "summary": "오늘 기준 가장 높은 구매 전환율을 보인 유입 채널은 Direct(직접)이며, 그 뒤를 카카오, 인스타그램, 네이버가 순차적으로 따릅니다.",
+      "findings": 1,
+      "dropped_findings": 0,
+      "forced": false,
+      "judge_grounded": 1.0,
+      "judge_fact_coverage": 0.0,
+      "judge_comment": "Direct가 가장 높은 전환율을 보인다는 주장은 결과로 뒷받침된다. 다만 newsletter는 전환율이 0%이고, 결과에는 naver_cpc가 별도 채널로 나타나지 않는다.",
+      "judge_error": null,
+      "unsupported_claims": [],
+      "metrics": {
+        "run_id": "b7451602-d581-486b-8bf9-a270366e047c",
+        "status": "succeeded",
+        "difficulty": "diagnose",
+        "initial_difficulty": "diagnose",
+        "tool_calls": 3,
+        "sql_attempts": 1,
+        "sql_failures": 0,
+        "first_sql_ok": true,
+        "corrections": 0,
+        "llm_calls": 3,
+        "format_errors": 0,
+        "prompt_tokens": 8394,
+        "completion_tokens": 1029,
+        "reasoning_tokens": 0,
+        "latency_ms": 12657,
+        "wait_ms": 0,
+        "error": null,
+        "models": {
+          "gpt-oss-20b-ctx32k": 4
+        },
+        "fallback_calls": 0
+      }
+    },
+    {
+      "id": "diag-07",
+      "question": "하루 중 트래픽이 몰리는 시간대는 언제야? 기기별로 차이가 있는지도 봐줘",
+      "passed": false,
+      "found": [],
+      "missing": [
+        "lunch_peak",
+        "evening_peak",
+        "desktop_work_hours"
+      ],
+      "required": 2,
+      "values": {},
+      "summary": "트래픽이 가장 몰리는 시간은 08시이며 디바이스에 따라 차이가 있어 모바일은 00시에 집중됩니다.",
+      "findings": 2,
+      "dropped_findings": 0,
+      "forced": false,
+      "judge_grounded": 0.5,
+      "judge_fact_coverage": 0.0,
+      "judge_comment": "08시 전체 피크와 기기별 최고 시간은 결과로 확인되지만, 시간대 표기는 근거가 없다. 정답 사실인 점심·저녁 피크와 데스크톱 업무 시간 비중은 답변에 포함되지 않았다.",
+      "judge_error": null,
+      "unsupported_claims": [
+        "1: 결과에서 전체 트래픽 최고 시간은 08시(49세션)로 확인되지만, 시간대가 UTC+9라는 정보는 SQL 결과에 없다."
+      ],
+      "metrics": {
+        "run_id": "5d71b8e7-9196-4527-8ecf-ce9696d13df3",
+        "status": "succeeded",
+        "difficulty": "diagnose",
+        "initial_difficulty": "diagnose",
+        "tool_calls": 7,
+        "sql_attempts": 5,
+        "sql_failures": 0,
+        "first_sql_ok": true,
+        "corrections": 0,
+        "llm_calls": 8,
+        "format_errors": 0,
+        "prompt_tokens": 23813,
+        "completion_tokens": 4718,
+        "reasoning_tokens": 0,
+        "latency_ms": 56719,
+        "wait_ms": 0,
+        "error": null,
+        "models": {
+          "gpt-oss-20b-ctx32k": 9
+        },
+        "fallback_calls": 0
+      }
+    },
+    {
+      "id": "diag-08",
+      "question": "주말과 평일의 방문 패턴은 어떻게 달라?",
+      "passed": true,
+      "found": [
+        "weekend_up"
+      ],
+      "missing": [],
+      "required": 1,
+      "values": {},
+      "summary": "평일에 방문자가 많고 주말에 비해 방문자가 적으며, 주말 평균 세션 시간은 평일보다 약간 더 긴 편이다.",
+      "findings": 2,
+      "dropped_findings": 0,
+      "forced": false,
+      "judge_grounded": 1.0,
+      "judge_fact_coverage": 0.0,
+      "judge_comment": "인용된 수치와 주장은 근거 결과에 부합한다. 다만 정답 사실인 ‘주말 방문이 평일보다 많다’는 답변에 포함되지 않았으며, 답변은 반대로 평일 방문자가 더 많다고 했다.",
+      "judge_error": null,
+      "unsupported_claims": [],
+      "metrics": {
+        "run_id": "f6fa1622-3cb3-4607-81a1-1fb607711ba6",
+        "status": "succeeded",
+        "difficulty": "diagnose",
+        "initial_difficulty": "diagnose",
+        "tool_calls": 6,
+        "sql_attempts": 3,
+        "sql_failures": 0,
+        "first_sql_ok": true,
+        "corrections": 0,
+        "llm_calls": 7,
+        "format_errors": 1,
+        "prompt_tokens": 19935,
+        "completion_tokens": 6411,
+        "reasoning_tokens": 0,
+        "latency_ms": 93000,
+        "wait_ms": 0,
+        "error": null,
+        "models": {
+          "gpt-oss-20b-ctx32k": 7
+        },
+        "fallback_calls": 0
+      }
+    },
+    {
+      "id": "diag-09",
+      "question": "nov_mega_sale 캠페인의 성과를 유입과 전환 관점에서 평가해줘",
+      "passed": false,
+      "found": [],
+      "missing": [
+        "campaign_sources",
+        "new_visitors"
+      ],
+      "required": 1,
+      "values": {},
+      "summary": "지난 일주일간 nov_mega_sale 캠페인은 평균 전환율 6.4%와 낮은 이탈률을 보여 전환 효과가 양호하며, 참여율도 보통 수준입니다.",
+      "findings": 2,
+      "dropped_findings": 0,
+      "forced": false,
+      "judge_grounded": 0.5,
+      "judge_fact_coverage": 0.0,
+      "judge_comment": "기간별 세션·전환 및 비율 수치는 집계 결과와 일치합니다. 다만 제시된 결과에는 유입 채널이나 신규 방문자에 대한 정보가 없어 정답 사실을 다루지 않았습니다.",
+      "judge_error": null,
+      "unsupported_claims": [
+        "2: step 3에 이탈률 3.78%와 참여율 17.83%는 나오지만, 비교 기준이 없어 이탈률이 ‘낮다’는 평가는 결과만으로 확인할 수 없습니다. 참여율 수치는 확인됩니다."
+      ],
+      "metrics": {
+        "run_id": "ec27ad2e-da67-448f-a19f-a6b16a18dc0f",
+        "status": "succeeded",
+        "difficulty": "diagnose",
+        "initial_difficulty": "diagnose",
+        "tool_calls": 5,
+        "sql_attempts": 3,
+        "sql_failures": 0,
+        "first_sql_ok": true,
+        "corrections": 0,
+        "llm_calls": 6,
+        "format_errors": 0,
+        "prompt_tokens": 20228,
+        "completion_tokens": 2572,
+        "reasoning_tokens": 0,
+        "latency_ms": 31813,
+        "wait_ms": 0,
+        "error": null,
+        "models": {
+          "gpt-oss-20b-ctx32k": 7
+        },
+        "fallback_calls": 0
+      }
+    },
+    {
+      "id": "diag-10",
+      "question": "최근 4주 기준으로 기기 유형별 결제 전환율이 다른 이유가 있을까?",
+      "passed": false,
+      "found": [],
+      "missing": [
+        "mobile_outage"
+      ],
+      "required": 1,
+      "values": {},
+      "summary": "최근 4주 기준, 디바이스에 따라 결제 전환율에 차이가 있다. 특히 태블릿이 가장 높은 전환율을 보이고 모바일은 가장 낮으며, 이는 화면 크기와 UI 적합성 등에서 차이가 있을 수 있음을 시사한다.",
+      "findings": 0,
+      "dropped_findings": 1,
+      "forced": false,
+      "judge_grounded": null,
+      "judge_fact_coverage": null,
+      "judge_comment": "",
+      "judge_error": "채점할 주장이 없음",
+      "unsupported_claims": [],
+      "metrics": {
+        "run_id": "8475e4a5-0191-441e-aecb-be9d348cf5f8",
+        "status": "succeeded",
+        "difficulty": "diagnose",
+        "initial_difficulty": "diagnose",
+        "tool_calls": 7,
+        "sql_attempts": 4,
+        "sql_failures": 3,
+        "first_sql_ok": false,
+        "corrections": 1,
+        "llm_calls": 9,
+        "format_errors": 1,
+        "prompt_tokens": 29597,
+        "completion_tokens": 5605,
+        "reasoning_tokens": 0,
+        "latency_ms": 80452,
+        "wait_ms": 0,
+        "error": null,
+        "models": {
+          "gpt-oss-20b-ctx32k": 9
+        },
+        "fallback_calls": 0
+      }
+    },
+    {
+      "id": "diag-11",
+      "question": "로그인 회원과 비회원은 방문 행동이 어떻게 달라?",
+      "passed": true,
+      "found": [
+        "members_return"
+      ],
+      "missing": [],
+      "required": 1,
+      "values": {},
+      "summary": "로그인 회원은 비회원보다 평균 세션 길이와 전환율이 높아 참여도가 뛰어나지만, 이탈률은 거의 비슷합니다.",
+      "findings": 4,
+      "dropped_findings": 0,
+      "forced": false,
+      "judge_grounded": 0.75,
+      "judge_fact_coverage": 0.0,
+      "judge_comment": "로그인 회원의 평균 세션 길이와 전환율이 더 높고 이탈률은 비슷하다는 요약은 결과에 부합합니다. 다만 세션 길이 차이를 약 25초라고 한 것은 부정확하며, 방문자당 세션 수가 더 많다는 재방문 사실은 답변에 명시되지 않았습니다.",
+      "judge_error": null,
+      "unsupported_claims": [
+        "1: 결과의 평균 세션 길이는 비회원 69.14초, 로그인 회원 85.89초로 차이는 약 16.75초입니다. ‘약 25초 더 길다’는 결과와 맞지 않습니다."
+      ],
+      "metrics": {
+        "run_id": "d0c2bb90-16f8-4bbf-a4f5-11ecf84f19c2",
+        "status": "succeeded",
+        "difficulty": "diagnose",
+        "initial_difficulty": "diagnose",
+        "tool_calls": 4,
+        "sql_attempts": 2,
+        "sql_failures": 0,
+        "first_sql_ok": true,
+        "corrections": 0,
+        "llm_calls": 4,
+        "format_errors": 0,
+        "prompt_tokens": 13400,
+        "completion_tokens": 4508,
+        "reasoning_tokens": 0,
+        "latency_ms": 55891,
+        "wait_ms": 0,
+        "error": null,
+        "models": {
+          "gpt-oss-20b-ctx32k": 5
+        },
+        "fallback_calls": 0
+      }
+    },
+    {
+      "id": "diag-12",
+      "question": "최근 4주 동안 방문자가 늘고 있어? 추세와 이유를 알려줘",
+      "passed": true,
+      "found": [
+        "growth"
+      ],
+      "missing": [
+        "campaign"
+      ],
+      "required": 1,
+      "values": {},
+      "summary": "최근 4주 동안 방문자가 늘고 있으며, 네이버·구글·다이렉트 트래픽 증가가 주요 원인입니다.",
+      "findings": 2,
+      "dropped_findings": 0,
+      "forced": false,
+      "judge_grounded": 0.0,
+      "judge_fact_coverage": 0.5,
+      "judge_comment": "제시된 방문자 수는 결과에 나온 3주 동안 증가했습니다. 다만 캠페인 유입 증가를 다루지 않았고, 인용된 트래픽 결과만으로 특정 소스의 기여도도 확인할 수 없습니다.",
+      "judge_error": null,
+      "unsupported_claims": [
+        "1: 결과에는 2026-11-02, 11-09, 11-16의 3주만 있으며, 이 기간에 방문자가 4,742명에서 9,075명으로 증가한 것은 확인되지만 최근 4주 동안의 추세라고 단정할 수는 없습니다.",
+        "2: 인용 결과는 20행 중 앞 15행만 보여 주며, 네이버·구글·다이렉트의 이후 주별 수치가 없습니다. 따라서 이들의 비중이 증가해 방문자 증가에 기여했다는 주장을 확인할 수 없습니다."
+      ],
+      "metrics": {
+        "run_id": "8a5e7dc8-995b-453a-a4ea-8a2b9406551d",
+        "status": "succeeded",
+        "difficulty": "diagnose",
+        "initial_difficulty": "diagnose",
+        "tool_calls": 12,
+        "sql_attempts": 9,
+        "sql_failures": 3,
+        "first_sql_ok": true,
+        "corrections": 2,
+        "llm_calls": 14,
+        "format_errors": 1,
+        "prompt_tokens": 48030,
+        "completion_tokens": 6153,
+        "reasoning_tokens": 0,
+        "latency_ms": 81765,
+        "wait_ms": 0,
+        "error": null,
+        "models": {
+          "gpt-oss-20b-ctx32k": 14
+        },
+        "fallback_calls": 0
+      }
+    }
+  ]
+}

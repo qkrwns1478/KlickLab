@@ -36,6 +36,7 @@ class RunState:
     # 지식 베이스: 모델에게 이미 보여 준 문서("kind/name")와 같은 검색 → step seq
     knowledge_seen: set[str] = field(default_factory=set)
     search_cache: dict[str, int] = field(default_factory=dict)
+    early_submit_checked: bool = False  # diagnose 의 이른 제출을 한 번 되돌렸다
 
     def sql_step(self, seq: Any) -> Step | None:
         """성공한 run_sql step (근거로 인용할 수 있는 step)."""

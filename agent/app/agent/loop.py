@@ -19,7 +19,7 @@ from typing import Any
 
 from app import metrics
 from app.agent import prompts
-from app.agent.budget import Budget, Difficulty
+from app.agent.budget import WARN_RATIO, Budget, Difficulty
 from app.agent.router import Router
 from app.agent.store import RunStore, RunTotals
 from app.agent.text_to_sql import today_kst
@@ -299,7 +299,9 @@ class AgentLoop:
             schema=schema,
             search_tool=self._search is not None,
             history=run.history,
+            difficulty=budget.difficulty,
         )
+        guided = budget.difficulty == "diagnose"  # 원인 분석 절차를 보여 줬다
         submit = SubmitFinalAnswer()
         nudged = False
         must_answer = False  # 도구 없이 답한 모델에게 final_answer 를 강제한다
@@ -390,6 +392,9 @@ class AgentLoop:
                 if step.final is not None:
                     run.answer = step.final
                     run.answer.forced = exhausted
+            if budget.difficulty == "diagnose" and not guided and run.answer is None:
+                messages.append({"role": "system", "content": prompts.DIAGNOSE_GUIDE})  # 승격
+                guided = True
             if (
                 force
                 and run.answer is None
@@ -612,6 +617,11 @@ class AgentLoop:
         final_only: bool,
     ) -> ToolOutcome:
         if name == final_answer.NAME:
+            if not final_only and _too_early(state):
+                state.early_submit_checked = True
+                return ToolOutcome.fail(
+                    prompts.DIAGNOSE_TOO_EARLY.format(sqlRuns=state.budget.sql_runs), charged=False
+                )
             return await submit(state, args, seq)
         if final_only:
             return ToolOutcome.fail(
@@ -717,6 +727,19 @@ class AgentLoop:
         if self._own_tracer:
             await self.tracer.aclose()
         await asyncio.to_thread(self._executor.close)  # 실행 로그 저장소는 앱이 따로 닫는다
+
+
+def _too_early(state: RunState) -> bool:
+    """diagnose 에서 SQL 을 충분히 돌리기 전에 낸 첫 제출인가 (한 번만 되돌린다)."""
+    budget = state.budget
+    return (
+        budget.difficulty == "diagnose"
+        and not state.early_submit_checked
+        and budget.sql_runs < prompts.DIAGNOSE_MIN_SQL
+        and budget.can_run_sql()
+        and budget.can_call_tool()
+        and budget.ratio() < WARN_RATIO  # 예산 80% 를 넘겼으면 결론을 막지 않는다
+    )
 
 
 def _call_timeout(budget: Budget, final: bool) -> float:

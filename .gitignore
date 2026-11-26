@@ -19,6 +19,7 @@ pnpm-debug.log*
 # 시스템/IDE 파일
 .DS_Store
 Thumbs.db
+.claude/
 .vscode/
 .idea/
 

@@ -3,6 +3,16 @@
 - 작성일: 2026-11-12
 - 상위 계획: [01-text_to_sql_LLM_분석_에이전트_구현_계획](01-text_to_sql_LLM_분석_에이전트_구현_계획.md)
 
+## 현재 위치 (2026-11-26)
+
+- 구현은 Phase 1~4까지 끝났고, 폴백은 **선택 기능**으로 남긴다. 기본값은 `LLM_FALLBACK_PROVIDER=none`이다.
+- 기본 공급자를 Groq에서 OpenAI(gpt-6-luna, Responses API)로 바꿨다(2026-11-25). Groq·EXAONE은 무료 한도 때문에 더 쓰지 않는다. 그래서 1장의 배경(Groq TPM·TPD 초과)은 더 이상 해당하지 않는다.
+- OpenAI 응답 헤더의 한도는 분당 요청 30,000회, 분당 토큰 1억 8천만이고, 11-13·11-26 평가에서 한도 오류는 없었다. 다만 이 값이 OpenAI의 한도인지 GMS 프록시의 한도인지는 확인하지 않았다.
+- 로컬 gpt-oss-20b의 품질(2026-11-26, 1회): Tool Loop golden 84.1%, 원인 분석 33.3%. 같은 날 gpt-6-luna는 각각 94.7%(3회 평균), 66.7%(2회 평균)이다.
+- **켜는 경우**: GMS 프록시 장애나 한도 소진에 대비할 때, 또는 시연처럼 응답이 끊기면 안 될 때. 폴백 응답에는 표시가 붙고, 원인 분석 품질은 크게 떨어진다.
+- **걷어낼 조건**: 한동안 운영에서 프록시 한도 오류가 한 번도 없으면, 폴백 코드(`app/llm/fallback.py`, 쿨다운·시간 배율 설정, 리포트의 모델 혼합 경고)를 걷어내는 방안을 검토한다.
+- 7장의 Groq 기준선 측정(Phase 4 후속)은 Groq를 쓰지 않으므로 하지 않는다.
+
 ## 1. 배경과 목표
 
 에이전트의 LLM은 원래 Claude API였으나 비용 문제로 무료 API(Groq `openai/gpt-oss-120b`, K-EXAONE)를 쓰고 있다. 이 때문에 두 가지 제약이 있다.
@@ -248,12 +258,7 @@ LLM_FALLBACK_DAILY_COOLDOWN_SECONDS=3600
 - 평가 보고서에서 모델이 섞이지 않는다.
 - Phase 4에서 로컬 모델의 골든 실행 정확도가 Groq 대비 어느 정도인지 수치로 남고, 폴백을 허용할 난이도가 정해진다.
   - 2026-11-12 기준: 로컬 수치와 허용 난이도는 정했다. Groq Tool Loop 기준선은 한도 때문에 아직 없다.
-  - 2026-11-13 이후에 다음 두 명령으로 Groq를 같은 조건에서 돌리고 비교해야 한다.
-  ```bash
-  cd agent
-  .venv/Scripts/python -m evals.run_eval golden --mode loop --provider groq --ids lookup-01 ... compare-06
-  .venv/Scripts/python -m evals.run_eval analysis --provider groq
-  ```
+  - 2026-11-26: Groq 기준선은 측정하지 않기로 했다(Groq 미사용). 비교 기준은 OpenAI gpt-6-luna로 바뀌었고, 수치는 상단 "현재 위치"에 적었다.
 
 ## 9. 열린 질문
 

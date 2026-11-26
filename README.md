@@ -128,8 +128,7 @@
 ![Python](https://img.shields.io/badge/Python_3.12-3776AB?style=flat&logo=python&logoColor=white)
 ![FastAPI](https://img.shields.io/badge/FastAPI-009688?style=flat&logo=fastapi&logoColor=white)
 ![sqlglot](https://img.shields.io/badge/sqlglot-000000?style=flat&logoColor=white)
-![Groq](https://img.shields.io/badge/Groq_gpt--oss--120b-F55036?style=flat&logoColor=white)
-![K-EXAONE](https://img.shields.io/badge/K--EXAONE_2.5-A50034?logo=lg&style=flat&logoColor=white)
+![OpenAI](https://img.shields.io/badge/OpenAI_gpt--6--luna-412991?style=flat&logo=openai&logoColor=white)
 ![Ollama](https://img.shields.io/badge/Ollama-000000?style=flat&logo=ollama&logoColor=white)
 ![bge-m3](https://img.shields.io/badge/BGE--M3-FFD21E?style=flat&logo=huggingface&logoColor=black)
 
@@ -206,7 +205,7 @@ cd backend
 docker exec -it klicklab-postgres psql -U klicklab -d klicklab   -c "ALTER ROLE klicklab_agent_ro LOGIN PASSWORD 'agent_ro'"   -c "ALTER ROLE klicklab_agent LOGIN PASSWORD 'agent'"
 
 cd agent
-cp .env.example .env          # JWT_SECRET(backend/.env와 동일), GROQ_API_KEY 등을 채움. DB_PORT는 실제 DB 포트에 맞춤
+cp .env.example .env          # JWT_SECRET(backend/.env와 동일), OPENAI_API_KEY 등을 채움. DB_PORT는 실제 DB 포트에 맞춤
 uv sync
 uv run uvicorn app.main:app --port 8000   # http://localhost:8000/agent/health
 ```
@@ -232,7 +231,7 @@ npm run dev
 위 1~6을 직접 하지 않고 PostgreSQL, 백엔드, 에이전트, 프론트엔드, Langfuse를 한 번에 띄웁니다. 루트의 `docker-compose.yml`을 쓰며, DB만 띄우는 `backend/docker-compose.yml`(로컬 개발용)과는 별개입니다.
 
 ```bash
-cp .env.example .env          # JWT_SECRET, JWT_REFRESH_SECRET(32바이트 이상), GROQ_API_KEY 입력
+cp .env.example .env          # JWT_SECRET, JWT_REFRESH_SECRET(32바이트 이상), OPENAI_API_KEY 입력
 docker compose up -d --build
 ```
 
@@ -250,7 +249,7 @@ docker compose up -d --build
 - 데모 데이터는 자동으로 들어가지 않습니다. 시드 SQL(`backend/seed/clickstream_seed.sql`) 헤더의 실행 방법대로 `docker compose exec -T postgres psql -U klicklab -d klicklab -v ON_ERROR_STOP=1 < backend/seed/clickstream_seed.sql`을 실행합니다.
 - Langfuse 없이 쓰려면 `docker compose up -d postgres backend agent-db-roles agent frontend`로 필요한 서비스만 띄웁니다(에이전트는 Langfuse가 없어도 동작합니다).
 - RAG 모드(`KNOWLEDGE_MODE=rag`)의 로컬 임베딩은 이미지가 수 GB로 커져 기본 이미지에 넣지 않았습니다. 필요하면 `AGENT_WITH_EMBEDDING=true`로 다시 빌드하고 `EMBEDDING_PROVIDER=local`을 지정합니다.
-- 호스트의 Ollama를 로컬 폴백으로 쓰려면 `LLM_FALLBACK_PROVIDER=local`을 지정합니다(컨테이너에서 `host.docker.internal:11434`로 접근).
+- 로컬 폴백은 기본으로 꺼져 있습니다. OpenAI 프록시 장애에 대비하거나 시연처럼 응답이 끊기면 안 될 때만 호스트에서 Ollama를 띄우고 `LLM_FALLBACK_PROVIDER=local`을 지정합니다(컨테이너에서 `host.docker.internal:11434`로 접근). 로컬 모델은 조회 질문은 쓸 만하지만 원인 분석 품질이 크게 떨어집니다.
 
 ### 8. 관측: Langfuse와 Prometheus
 
@@ -261,7 +260,7 @@ docker compose up -d --build
 - 난이도 분류와 매 단계의 LLM 호출은 generation(입력 메시지, 응답, 토큰, 비용, 폴백 여부)으로, 도구 호출은 span(SQL, 결과, 오류)으로 남습니다.
 - 점수: 사용자 피드백(`user_feedback`: 1 / -1). 평가 러너(`evals.run_eval`)는 `eval` 환경으로 보내며 `execution_match`, `analysis_pass`, `fact_coverage`, `judge_grounded`, `safety_pass`를 답니다.
 - 에이전트 `.env`에 `LANGFUSE_HOST`, `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY`를 넣으면 켜지고, 비우면 꺼집니다. 전송은 백그라운드로 처리되어 Langfuse가 느리거나 꺼져 있어도 답변은 지연되지 않습니다.
-- 비용은 `app/llm/pricing.py`의 단가(Groq gpt-oss-120b, 로컬 0)로 계산해 `agent_runs.cost_usd`에도 저장합니다. 단가를 모르는 모델은 비워 둡니다(`LLM_PRICES`로 지정).
+- 비용은 `app/llm/pricing.py`의 단가로 계산해 `agent_runs.cost_usd`에도 저장합니다. 기본 단가는 gpt-oss-120b와 로컬 모델(0)뿐이라, 기본 공급자인 gpt-6-luna는 `LLM_PRICES`로 단가를 지정하기 전까지 비용이 비어 있습니다.
 
 **Prometheus** (`GET /metrics`)
 

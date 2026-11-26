@@ -633,3 +633,56 @@ async def test_promoted_difficulty_is_stored():
     )
     await collect(agent)
     assert store.runs["r1"]["totals"].difficulty == "compare"
+
+
+async def test_diagnose_gets_analysis_guide_and_early_report_is_sent_back_once():
+    agent, llm, executor, store = make_agent(
+        [
+            classify("diagnose"),
+            calls(("run_sql", {"sql": SQL_OK})),
+            report(),  # SQL 1회 뒤 제출 -> 한 번 되돌린다
+            report(),  # 다시 제출하면 받는다
+        ],
+        [ROWS],
+    )
+    events = await collect(agent, "방문자가 줄어든 이유를 분석해 줘")
+
+    system = llm.requests[1]["messages"][0]["content"]
+    assert "## 원인 분석 절차" in system
+    sent_back = [m for m in llm.requests[3]["messages"] if m["role"] == "tool"][-1]
+    assert "결론을 내기 이르다" in json.loads(sent_back["content"])["error"]
+    done = by_type(events, "done")[0]
+    assert done["status"] == "succeeded"
+    assert by_type(events, "answer")[0]["findings"][0]["evidence"] == [1]
+    assert [s["tool"] for s in store.steps] == ["run_sql", "submit_report", "submit_report"]
+
+
+async def test_non_diagnose_report_is_accepted_without_guide():
+    agent, llm, *_ = make_agent(
+        [classify("compare"), calls(("run_sql", {"sql": SQL_OK})), report()], [ROWS]
+    )
+    events = await collect(agent)
+    assert "## 원인 분석 절차" not in llm.requests[1]["messages"][0]["content"]
+    assert by_type(events, "done")[0]["status"] == "succeeded"
+    assert len(llm.requests) == 3
+
+
+async def test_promotion_to_diagnose_adds_analysis_guide():
+    agent, llm, *_ = make_agent(
+        [
+            classify("compare"),
+            calls(("request_more_budget", {"reason": "원인 분석"})),
+            calls(("run_sql", {"sql": SQL_OK})),
+            report(),
+            report(),
+        ],
+        [ROWS],
+    )
+    events = await collect(agent)
+    guides = [
+        m
+        for m in llm.requests[2]["messages"]
+        if m["role"] == "system" and "원인 분석 절차" in m["content"]
+    ]
+    assert len(guides) == 1
+    assert by_type(events, "done")[0]["difficulty"] == "diagnose"

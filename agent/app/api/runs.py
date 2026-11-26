@@ -98,7 +98,7 @@ def build_agent(
             "reasoning_effort": settings.agent_classify_reasoning_effort,
         },
         step_max_tokens=settings.agent_step_max_tokens,
-        max_prompt_tokens=settings.agent_max_prompt_tokens,
+        max_prompt_tokens=settings.max_prompt_tokens,
         max_rows=settings.sql_max_rows,
         model_rows=settings.agent_tool_result_rows,
         knowledge=get_knowledge_context(settings),

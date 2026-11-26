@@ -190,6 +190,30 @@ AGENT_SYSTEM_PROMPT = """\
 현재 예산: 툴 호출 {max_tool_calls}회, SQL 실행 {max_sql}회.
 """
 
+# diagnose 실행에만 붙인다. 처음 본 지표에서 멈추거나(2026-11-26 평가 diag-11: SQL 1회로 결론)
+# 한 관점만 반복해 예산을 다 쓰는(diag-01) 실패를 줄이기 위한 절차다
+DIAGNOSE_GUIDE = """\
+## 원인 분석 절차
+- 결론을 내기 전에 처음 조회한 지표 말고도 다른 관점으로 나눠 본다. 질문에 맞는 관점을 두세 개 고른다.
+  * 유입: traffic_source·traffic_medium·traffic_campaign
+  * 기기: device_type
+  * 방문자: 신규·재방문, 로그인 회원·비회원, 방문자당 세션 수(재방문 빈도)
+  * 페이지·퍼널 단계, 날짜·요일·시간대
+- 변화나 차이가 보이면 그 구간을 한 단계 더 나눠, 무엇이 달라졌는지(유입 구성, 기기 비중 등)를 확인한다.
+- "어떻게 다른가"를 묻는 질문은 세션 단위 지표만 보지 말고 방문자 단위 지표도 함께 본다.
+- 같은 관점의 쿼리를 조건만 바꿔 반복하지 않는다. 원인이 안 보이면 관점을 바꾼다.
+- 여러 지표·관점은 한 쿼리로 묶어 SQL 예산을 아낀다.
+- 표본이 작은 구간(오늘의 부분 데이터, 세션이 적은 그룹)만으로 결론 내지 않는다.
+"""
+
+# diagnose 에서 SQL 을 이만큼 돌리기 전에 제출하면 한 번 되돌린다
+DIAGNOSE_MIN_SQL = 3
+DIAGNOSE_TOO_EARLY = (
+    "아직 결론을 내기 이르다. 지금까지 SQL {sqlRuns}회로 한 관점만 봤다. 질문에 맞는 다른 관점"
+    "(유입, 기기, 방문자 유형, 페이지·퍼널, 시간)을 한두 개 더 조회해 원인을 확인한 뒤 submit_report 를 "
+    "다시 제출하라. 더 볼 것이 없다고 판단하면 그 이유를 summary 에 밝히고 그대로 다시 제출해도 된다."
+)
+
 BUDGET_WARNING = (
     "[예산 안내] 예산의 80% 를 사용했다. 남은 예산(툴 호출 {toolCalls}회, SQL {sqlRuns}회) 안에서 "
     "지금까지의 결과로 결론을 내고 submit_report 를 제출하라."
@@ -264,6 +288,7 @@ def agent_messages(
     schema: str = SCHEMA_SUMMARY,
     search_tool: bool = False,
     history: Sequence[Turn] = (),
+    difficulty: str | None = None,
 ) -> list[dict[str, str]]:
     context = f"오늘은 {today.isoformat()}({_WEEKDAYS[today.weekday()]}요일)이다."
     system = AGENT_SYSTEM_PROMPT.format(
@@ -273,6 +298,8 @@ def agent_messages(
         max_tool_calls=max_tool_calls,
         max_sql=max_sql,
     )
+    if difficulty == "diagnose":
+        system += "\n" + DIAGNOSE_GUIDE
     return [
         {"role": "system", "content": system},
         {"role": "user", "content": f"{context}\n\n{history_block(history)}질문: {question}"},

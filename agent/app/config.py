@@ -18,7 +18,8 @@ class Settings(BaseSettings):
     cors_allowed_origins: str = "http://localhost:5173,http://127.0.0.1:5173"
 
     # LLM 공급자: openai(기본, 2026-11-25~) / local / groq / exaone.
-    # Groq·EXAONE 은 무료 한도(TPD 등) 때문에 평가·운영에 더 쓰지 않는다 (클라이언트는 비교용으로 남겨 둔다)
+    # Groq·EXAONE 은 무료 한도(TPD 등) 때문에 평가·운영에 더 쓰지 않는다
+    # (클라이언트는 비교용으로 남겨 둔다)
     llm_provider: str = "openai"
     exaone_api_key: str = ""
     exaone_base_url: str = "https://api.exaone.ai/v1"
@@ -62,7 +63,8 @@ class Settings(BaseSettings):
     # 다 써서 도구 호출 없이 끝나는 경우가 많았다 (Phase 4). 빈 값이면 제한하지 않는다
     local_max_reasoning_effort: str = "medium"
 
-    # 폴백: 기본 공급자가 한도 초과·장애로 실패하면 같은 요청을 대체 공급자에 보낸다
+    # 폴백 (선택, 기본 끔): 기본 공급자가 한도 초과·장애로 실패하면 같은 요청을
+    # 대체 공급자에 보낸다. OpenAI 로 바꾼 뒤로는 프록시 장애·시연 대비로만 켠다
     llm_fallback_provider: str = "none"  # none | local
     llm_fallback_statuses: str = "402,429,413,500,502,503,504"  # 408 을 넣으면 시간 초과도 넘긴다
     # 폴백이 있을 때 기본 공급자의 재시도 대기 상한과 재시도 횟수. 더 기다려야 하면 바로 넘긴다
@@ -76,9 +78,9 @@ class Settings(BaseSettings):
     agent_classify_max_tokens: int = 1024
     agent_classify_reasoning_effort: str = "low"
     agent_step_max_tokens: int = 3072
-    # 요청 하나의 입력 토큰 상한 (0 = 제한 없음). Groq 무료 등급은 TPM 8K 를 넘는 요청을 413 으로
-    # 거절하며, 이때 요청 크기에 max_tokens 가 더해지는 것으로 보여 8000 - 3072 보다 작게 둔다
-    agent_max_prompt_tokens: int = 4800
+    # 요청 하나의 입력 토큰 상한 (0 = 제한 없음). 넘으면 이력을 압축하고, 그래도 넘으면
+    # 결론을 강제한다. 비우면 공급자별 값을 쓴다 (max_prompt_tokens 참고)
+    agent_max_prompt_tokens: int | None = None
     # LLM 에 돌려주는 SQL 결과 행 수 (토큰 절약). 실행 로그에는 sql_result_rows 까지 남긴다
     agent_tool_result_rows: int = 20
 
@@ -115,6 +117,24 @@ class Settings(BaseSettings):
     sql_max_rows: int = 1000
     sql_result_rows: int = 200
     sql_max_plan_cost: float = 200_000.0
+
+    @property
+    def max_prompt_tokens(self) -> int:
+        """Tool Loop 의 입력 토큰 상한. 폴백이 있으면 두 공급자 중 작은 값 (0 = 제한 없음).
+
+        * groq : 무료 등급 TPM 8K 를 넘는 요청을 413 으로 거절한다 (2026-11-11, 4800)
+        * local: 서버 컨텍스트(num_ctx)에서 단계 출력과 토큰 추정 오차를 뺀 75%
+        * 그 외(openai 등): 제한하지 않는다. 4800 을 그대로 쓰면 diagnose 이력의 결과 행이
+          압축돼 빠졌다 (2026-11-26 평가)
+        """
+        if self.agent_max_prompt_tokens is not None:
+            return self.agent_max_prompt_tokens
+        caps = {"groq": 4800, "local": int(self.local_num_ctx * 0.75)}
+        providers = [self.llm_provider]
+        if self.llm_fallback_provider != "none":
+            providers.append(self.llm_fallback_provider)
+        limits = [caps[p] for p in providers if p in caps]
+        return min(limits) if limits else 0
 
     @property
     def langfuse_enabled(self) -> bool:

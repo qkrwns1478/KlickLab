@@ -1,0 +1,148 @@
+{
+  "kind": "analysis",
+  "model": "gpt-6-luna",
+  "judge_model": "gpt-6-luna",
+  "label": "depth-cap0-min",
+  "started_at": "2026-11-26T10:43:08+09:00",
+  "knowledge_mode": "prompt",
+  "summary": {
+    "total": 2,
+    "pass_rate": 50.0,
+    "fact_coverage": 50.0,
+    "judge_grounded": 90.0,
+    "judge_fact_coverage": 50.0,
+    "judged": 2,
+    "findings_avg": 4.5,
+    "dropped_findings": 0,
+    "forced_answers": 0,
+    "agent": {
+      "overall": {
+        "n": 2,
+        "tool_calls_avg": 6,
+        "llm_calls_avg": 6,
+        "prompt_tokens_avg": 29389,
+        "completion_tokens_avg": 6716,
+        "reasoning_tokens_avg": 4118,
+        "cost_usd_avg": 0.0,
+        "latency_ms_avg": 58188,
+        "latency_ms_p50": 58188,
+        "wait_ms_avg": 0,
+        "budget_exhausted_rate": 0.0,
+        "failed_rate": 0.0,
+        "first_sql_ok_rate": 100.0,
+        "corrections_avg": 0,
+        "promoted": 0
+      },
+      "by_difficulty": {
+        "diagnose": {
+          "n": 2,
+          "tool_calls_avg": 6,
+          "llm_calls_avg": 6,
+          "prompt_tokens_avg": 29389,
+          "completion_tokens_avg": 6716,
+          "reasoning_tokens_avg": 4118,
+          "cost_usd_avg": 0.0,
+          "latency_ms_avg": 58188,
+          "latency_ms_p50": 58188,
+          "wait_ms_avg": 0,
+          "budget_exhausted_rate": 0.0,
+          "failed_rate": 0.0,
+          "first_sql_ok_rate": 100.0,
+          "corrections_avg": 0,
+          "promoted": 0
+        }
+      }
+    }
+  },
+  "items": [
+    {
+      "id": "diag-01",
+      "question": "어제는 그 전 7일보다 참여도가 떨어진 페이지가 있어? 있다면 원인을 분석해 줘",
+      "passed": false,
+      "found": [],
+      "missing": [
+        "campaign_ended"
+      ],
+      "required": 1,
+      "values": {},
+      "summary": "네. 어제는 직전 7일보다 페이지 종료율이 높아지고 평균 체류시간이 줄어든 페이지가 있으며, 표본이 비교적 있는 곳은 /products/2, /products/15, /faq입니다. 특히 상품 페이지는 유입 구성 변화만으로 설명되기보다 주요 기기·유입 구간 안에서도 체류시간이 낮아진 신호가 있지만, 이 데이터만으로 원인을 확정할 수는 없습니다.",
+      "findings": 5,
+      "dropped_findings": 0,
+      "forced": false,
+      "judge_grounded": 0.8,
+      "judge_fact_coverage": 0.0,
+      "judge_comment": "주요 페이지와 기기별 비교는 인용 결과로 뒷받침된다. 다만 정답 사실인 nov_mega_sale 캠페인 유입 감소는 언급되지 않았고, /products/2 기타 유입의 직전 7일 비교는 제시된 결과에서 확인되지 않는다.",
+      "judge_error": null,
+      "unsupported_claims": [
+        "5: step 4에 /products/15의 유기 검색·직접 유입 수치와 /products/2 CPC 수치는 확인된다. 그러나 인용된 결과에는 /products/2의 직전 7일 기타 유입 행이 없으므로 기타 유입 비중 17.9%와 체류시간 54.7초라는 비교를 검증할 수 없다."
+      ],
+      "metrics": {
+        "run_id": "abe19cd0-5fe8-42b3-8e80-53bd883869d6",
+        "status": "succeeded",
+        "difficulty": "diagnose",
+        "initial_difficulty": "diagnose",
+        "tool_calls": 6,
+        "sql_attempts": 5,
+        "sql_failures": 0,
+        "first_sql_ok": true,
+        "corrections": 0,
+        "llm_calls": 6,
+        "format_errors": 0,
+        "prompt_tokens": 29428,
+        "completion_tokens": 7002,
+        "reasoning_tokens": 4623,
+        "latency_ms": 60875,
+        "wait_ms": 0,
+        "error": null,
+        "models": {
+          "gpt-6-luna": 7
+        },
+        "fallback_calls": 0
+      }
+    },
+    {
+      "id": "diag-04",
+      "question": "최근 일주일 사이 신규 방문자가 크게 늘어난 원인을 찾아줘",
+      "passed": true,
+      "found": [
+        "campaign",
+        "campaign_sources"
+      ],
+      "missing": [],
+      "required": 1,
+      "values": {},
+      "summary": "DB에서 최초 관측된 신규 방문자는 최근 7일 7,486명으로 직전 7일 4,500명보다 2,986명(66.4%) 늘었습니다. 증가분의 대부분은 nov_mega_sale 유입에 집중됐고, 기기 기준으로는 모바일 증가가 가장 컸습니다.",
+      "findings": 4,
+      "dropped_findings": 0,
+      "forced": false,
+      "judge_grounded": 1.0,
+      "judge_fact_coverage": 1.0,
+      "judge_comment": "모든 주장은 인용한 SQL 결과로 확인된다. 신규 방문자 증가가 특정 캠페인 유입에 집중됐다는 요약도 근거와 부합한다.",
+      "judge_error": null,
+      "unsupported_claims": [],
+      "metrics": {
+        "run_id": "f649ae01-7c65-4266-b4e8-7e2612dadc07",
+        "status": "succeeded",
+        "difficulty": "diagnose",
+        "initial_difficulty": "diagnose",
+        "tool_calls": 6,
+        "sql_attempts": 5,
+        "sql_failures": 0,
+        "first_sql_ok": true,
+        "corrections": 0,
+        "llm_calls": 6,
+        "format_errors": 0,
+        "prompt_tokens": 29350,
+        "completion_tokens": 6429,
+        "reasoning_tokens": 3614,
+        "latency_ms": 55500,
+        "wait_ms": 0,
+        "error": null,
+        "models": {
+          "gpt-6-luna": 7
+        },
+        "fallback_calls": 0
+      }
+    }
+  ]
+}
