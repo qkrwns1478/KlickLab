@@ -1,0 +1,69 @@
+{
+  "kind": "golden",
+  "mode": "single",
+  "model": "openai/gpt-oss-120b",
+  "reasoning_effort": "medium",
+  "label": "c15-rag-expand1",
+  "started_at": "2026-11-12T10:57:53+09:00",
+  "knowledge_mode": "rag",
+  "knowledge_quota": "table:2,metric:2,glossary:3,example:1",
+  "summary": {
+    "total": 1,
+    "execution_accuracy": 100.0,
+    "evaluated": 1,
+    "transposed": 0,
+    "llm_errors": 0,
+    "by_category": {
+      "compare": {
+        "n": 1,
+        "accuracy": 100.0
+      }
+    },
+    "beyond_summary": {
+      "n": 0,
+      "accuracy": null
+    },
+    "statuses": {
+      "match": 1
+    },
+    "latency_ms_avg": 2483,
+    "latency_ms_p50": 2483,
+    "latency_ms_max": 2483,
+    "prompt_tokens_avg": 2755,
+    "completion_tokens_avg": 898,
+    "reasoning_tokens_avg": 644,
+    "retrieval_ms_avg": 8952
+  },
+  "items": [
+    {
+      "id": "compare-15",
+      "category": "compare",
+      "question": "지난주 세션 200개 이상인 유입 소스(traffic_source) 중 결제한 세션 비율(%)이 가장 높은 3개는?",
+      "status": "match",
+      "reason": "",
+      "sql": "WITH total AS (\n    SELECT\n        traffic_source,\n        SUM(sessions) AS total_sessions\n    FROM agg_traffic_hourly\n    WHERE summary_date >= date_trunc('week', current_date)::date - 7\n      AND summary_date <  date_trunc('week', current_date)::date\n    GROUP BY traffic_source\n),\npayments AS (\n    SELECT\n        traffic_source,\n        COUNT(DISTINCT session_id) AS payment_sessions\n    FROM events\n    WHERE event_name = 'is_payment'\n      AND timestamp >= date_trunc('week', current_date)::date - 7\n      AND timestamp <  date_trunc('week', current_date)::date\n    GROUP BY traffic_source\n)\nSELECT\n    t.traffic_source,\n    t.total_sessions,\n    COALESCE(p.payment_sessions, 0) AS payment_sessions,\n    COALESCE(p.payment_sessions, 0) * 100.0 / NULLIF(t.total_sessions, 0) AS payment_rate_percent\nFROM total t\nLEFT JOIN payments p USING (traffic_source)\nWHERE t.total_sessions >= 200\nORDER BY payment_rate_percent DESC NULLS LAST\nLIMIT 3;",
+      "beyond_summary": false,
+      "latency_ms": 2483,
+      "prompt_tokens": 2755,
+      "completion_tokens": 898,
+      "reasoning_tokens": 644,
+      "gold_rows": 3,
+      "pred_rows": 3,
+      "knowledge": [
+        "table/agg_traffic_hourly",
+        "table/agg_funnel_links_daily",
+        "metric/payment_session_rate",
+        "metric/sessions",
+        "glossary/traffic_channels",
+        "glossary/period_week",
+        "glossary/event_names",
+        "example/landing_bounce_by_source",
+        "table/events"
+      ],
+      "retrieval_ms": 8952,
+      "transposed": false,
+      "any_step_match": null,
+      "metrics": null
+    }
+  ]
+}

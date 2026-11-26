@@ -124,6 +124,24 @@
 ![JWT](https://img.shields.io/badge/JWT-000000?style=flat&logo=jsonwebtokens&logoColor=white)
 ![Micrometer Prometheus](https://img.shields.io/badge/Micrometer--Prometheus-E6522C?style=flat&logo=prometheus&logoColor=white)
 
+### AI Agent
+![Python](https://img.shields.io/badge/Python_3.12-3776AB?style=flat&logo=python&logoColor=white)
+![FastAPI](https://img.shields.io/badge/FastAPI-009688?style=flat&logo=fastapi&logoColor=white)
+![sqlglot](https://img.shields.io/badge/sqlglot-000000?style=flat&logoColor=white)
+![OpenAI](https://img.shields.io/badge/OpenAI_gpt--6--luna-412991?style=flat&logo=openai&logoColor=white)
+![Ollama](https://img.shields.io/badge/Ollama-000000?style=flat&logo=ollama&logoColor=white)
+![bge-m3](https://img.shields.io/badge/BGE--M3-FFD21E?style=flat&logo=huggingface&logoColor=black)
+
+### Observability
+![Langfuse](https://img.shields.io/badge/Langfuse-0A0A0A?style=flat&logoColor=white)
+![Prometheus](https://img.shields.io/badge/Prometheus-E6522C?style=flat&logo=prometheus&logoColor=white)
+![Grafana](https://img.shields.io/badge/Grafana-F46800?style=flat&logo=grafana&logoColor=white)
+
+### Infra
+![Docker](https://img.shields.io/badge/Docker-2496ED?style=flat&logo=docker&logoColor=white)
+![Nginx](https://img.shields.io/badge/Nginx-009639?style=flat&logo=nginx&logoColor=white)
+![GitHub Actions](https://img.shields.io/badge/GitHub_Actions-2088FF?style=flat&logo=githubactions&logoColor=white)
+
 ## 설치 및 실행
 
 ### 1. 레포지토리 클론
@@ -178,10 +196,100 @@ cd backend
 ./gradlew bootRun --args="--aggregate=backfill --from=2026-11-01 --to=2026-11-09"  # 기간 전체 재집계 (생략 시 어제)
 ```
 
-### 5. 프론트엔드 실행
+### 5. 분석 에이전트 서버 실행 (Python 3.12, uv)
+
+자연어 질문을 SQL로 바꿔 조회하는 분석 에이전트(FastAPI)입니다. 대시보드의 **분석 에이전트** 탭을 쓰려면 필요하며, DB를 공유하므로 백엔드(4번)를 한 번 실행해 마이그레이션(V4, V5)이 적용된 뒤에 띄웁니다.
+
+```bash
+# 에이전트 전용 DB 롤에 로그인 허용 (최초 1회)
+docker exec -it klicklab-postgres psql -U klicklab -d klicklab   -c "ALTER ROLE klicklab_agent_ro LOGIN PASSWORD 'agent_ro'"   -c "ALTER ROLE klicklab_agent LOGIN PASSWORD 'agent'"
+
+cd agent
+cp .env.example .env          # JWT_SECRET(backend/.env와 동일), OPENAI_API_KEY 등을 채움. DB_PORT는 실제 DB 포트에 맞춤
+uv sync
+uv run uvicorn app.main:app --port 8000   # http://localhost:8000/agent/health
+```
+
+- 프론트엔드 개발 서버가 `/agent`를 `localhost:8000`으로 프록시합니다.
+- RAG 모드(`KNOWLEDGE_MODE=rag`)를 쓰려면 먼저 `uv run python -m app.knowledge.indexer`로 지식 베이스를 적재합니다.
+
+```powershell
+cd agent
+.venv\Scripts\python -m uvicorn app.main:app --port 8000
+```
+
+### 6. 프론트엔드 실행
 
 ```bash
 cd frontend
 npm install
 npm run dev
 ```
+
+### 7. 전체 스택을 Docker Compose로 실행
+
+위 1~6을 직접 하지 않고 PostgreSQL, 백엔드, 에이전트, 프론트엔드, Langfuse를 한 번에 띄웁니다. 루트의 `docker-compose.yml`을 쓰며, DB만 띄우는 `backend/docker-compose.yml`(로컬 개발용)과는 별개입니다.
+
+```bash
+cp .env.example .env          # JWT_SECRET, JWT_REFRESH_SECRET(32바이트 이상), OPENAI_API_KEY 입력
+docker compose up -d --build
+```
+
+| 서비스 | 주소 | 비고 |
+| --- | --- | --- |
+| 대시보드 | http://localhost:8080 | nginx가 `/api`는 백엔드, `/agent`는 에이전트로 전달 |
+| 백엔드 | http://localhost:4000 | 메트릭 `:9091/metrics` |
+| 에이전트 | http://localhost:8000 | 메트릭 `/metrics` |
+| Langfuse | http://localhost:3000 | 로그인 `admin@klicklab.dev` / `klicklab-admin` (`.env`로 변경) |
+| Grafana | http://localhost:3001 | `--profile monitoring`일 때만. `admin` / `klicklab-admin` (`GRAFANA_ADMIN_PASSWORD`) |
+| Prometheus | http://localhost:9090 | `--profile monitoring`일 때만 |
+
+- 로컬 개발 서버가 같은 포트를 쓰고 있으면 `.env`의 `FRONTEND_PORT`, `BACKEND_PORT`, `AGENT_PORT`, `LANGFUSE_PORT`, `DB_PORT`로 바꿉니다.
+- `agent-db-roles`가 백엔드의 마이그레이션(V4)이 끝난 뒤 에이전트 전용 DB 롤의 로그인을 열어 줍니다. 5번의 수동 `ALTER ROLE`은 필요 없습니다.
+- 데모 데이터는 자동으로 들어가지 않습니다. 시드 SQL(`backend/seed/clickstream_seed.sql`) 헤더의 실행 방법대로 `docker compose exec -T postgres psql -U klicklab -d klicklab -v ON_ERROR_STOP=1 < backend/seed/clickstream_seed.sql`을 실행합니다.
+- Langfuse 없이 쓰려면 `docker compose up -d postgres backend agent-db-roles agent frontend`로 필요한 서비스만 띄웁니다(에이전트는 Langfuse가 없어도 동작합니다).
+- RAG 모드(`KNOWLEDGE_MODE=rag`)의 로컬 임베딩은 이미지가 수 GB로 커져 기본 이미지에 넣지 않았습니다. 필요하면 `AGENT_WITH_EMBEDDING=true`로 다시 빌드하고 `EMBEDDING_PROVIDER=local`을 지정합니다.
+- 로컬 폴백은 기본으로 꺼져 있습니다. OpenAI 프록시 장애에 대비하거나 시연처럼 응답이 끊기면 안 될 때만 호스트에서 Ollama를 띄우고 `LLM_FALLBACK_PROVIDER=local`을 지정합니다(컨테이너에서 `host.docker.internal:11434`로 접근). 로컬 모델은 조회 질문은 쓸 만하지만 원인 분석 품질이 크게 떨어집니다.
+
+### 8. 관측: Langfuse와 Prometheus
+
+**Langfuse** (에이전트 실행 추적)
+
+에이전트 실행 하나가 트레이스 하나입니다. 트레이스 id는 `agent_runs.id`와 같아서 실행 기록과 1:1로 찾을 수 있습니다.
+
+- 난이도 분류와 매 단계의 LLM 호출은 generation(입력 메시지, 응답, 토큰, 비용, 폴백 여부)으로, 도구 호출은 span(SQL, 결과, 오류)으로 남습니다.
+- 점수: 사용자 피드백(`user_feedback`: 1 / -1). 평가 러너(`evals.run_eval`)는 `eval` 환경으로 보내며 `execution_match`, `analysis_pass`, `fact_coverage`, `judge_grounded`, `safety_pass`를 답니다.
+- 에이전트 `.env`에 `LANGFUSE_HOST`, `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY`를 넣으면 켜지고, 비우면 꺼집니다. 전송은 백그라운드로 처리되어 Langfuse가 느리거나 꺼져 있어도 답변은 지연되지 않습니다.
+- 비용은 `app/llm/pricing.py`의 단가로 계산해 `agent_runs.cost_usd`에도 저장합니다. 기본 단가는 gpt-oss-120b와 로컬 모델(0)뿐이라, 기본 공급자인 gpt-6-luna는 `LLM_PRICES`로 단가를 지정하기 전까지 비용이 비어 있습니다.
+
+**Prometheus** (`GET /metrics`)
+
+| 메트릭 | 레이블 | 내용 |
+| --- | --- | --- |
+| `agent_runs_total`, `agent_run_duration_seconds` | status, difficulty | 실행 수, 실행 시간 |
+| `agent_runs_in_progress` | | 진행 중인 실행 수 |
+| `agent_llm_calls_total`, `agent_llm_call_duration_seconds` | model, fallback | LLM 호출 수, 시간 |
+| `agent_llm_tokens_total`, `agent_llm_cost_usd_total` | model, type | 토큰, 비용 |
+| `agent_llm_errors_total`, `agent_fallback_runs_total` | status, model | 공급자 오류, 폴백 실행 |
+| `agent_tool_calls_total`, `agent_tool_duration_seconds` | tool, outcome | 도구 호출 |
+| `agent_feedback_total` | value | 피드백 |
+| `http_requests_total`, `http_request_duration_seconds` | method, path, status | HTTP (SSE는 응답 시작까지) |
+
+```yaml
+# prometheus.yml 일부
+scrape_configs:
+  - job_name: klicklab-agent
+    static_configs: [{ targets: ["localhost:8000"] }]
+  - job_name: klicklab-backend
+    static_configs: [{ targets: ["localhost:9091"] }]
+```
+
+**Grafana + Prometheus** (선택)
+
+```bash
+docker compose --profile monitoring up -d
+```
+
+기본 `docker compose up`에는 포함되지 않습니다. Prometheus가 에이전트(`/metrics`)와 백엔드(`:9091/metrics`)를 15초마다 수집하고(`monitoring/prometheus.yml`), Grafana에는 **KlickLab / KlickLab 에이전트** 대시보드가 미리 들어 있습니다(`monitoring/grafana/`). 패널은 실행 수·실행 시간(p50/p95)·진행 중 실행·누적 비용, LLM 호출·토큰·시간·오류·폴백·모델별 비용, 도구 호출·시간, 피드백, 에이전트·백엔드 HTTP입니다. 백엔드는 Spring 기본 설정이 히스토그램을 내보내지 않아 평균 응답 시간만 보여 줍니다.
+
+`/metrics`에는 질문, `sdk_key`, 사용자 정보가 들어가지 않지만 인증이 없으므로 외부에 공개되는 환경에서는 프록시에서 막거나 `METRICS_ENABLED=false`로 끕니다. 프론트엔드 nginx는 `/agent/` 경로만 넘기므로 대시보드를 통해서는 접근되지 않습니다.

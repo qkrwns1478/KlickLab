@@ -1,7 +1,6 @@
 # Text-to-SQL 기반 LLM 분석 에이전트 구현 계획
 
 - 작성일: 2026-11-10
-- 참고: `temp/text-to-sql-project-suggestion.md`
 
 ## 1. 목표
 
@@ -67,7 +66,7 @@ KlickLab의 클릭스트림 데이터 위에 **자연어로 질문하면 스스�
 설계 원칙
 
 - **Spring 백엔드는 건드리지 않는다.** 에이전트는 독립 Python 서비스로 두고 DB만 공유한다. (포트폴리오에서 Python 서비스 경계가 명확히 드러남)
-- **LLM이 만든 SQL은 신뢰하지 않는다.** 정적 검증 + DB 권한 + 실행 제한의 3중 방어.
+- **LLM이 만든 SQL은 신뢰하지 않는다.** 정적 검증 + DB 권한 + 실행 제한의 3중 방어를 해야 한다.
 - **비용은 질문 난이도에 따라 미리 정한다.** 루프가 예산을 넘으면 그 시점까지의 근거로 답한다.
 
 ## 4. 기술 스택
@@ -174,8 +173,9 @@ return final_answer or forced_summary()
    - `LIMIT` 없으면 주입, 상한 1,000행
    - `events` 조회 시 기간 조건이 없으면 거부 (원천 테이블 풀스캔 방지)
 2. **DB 권한**
-   - 전용 롤 `klicklab_agent`: 화이트리스트 테이블 `SELECT`만 부여
+   - 전용 롤 `klicklab_agent_ro`: 화이트리스트 테이블 `SELECT`만 부여 (실행 로그·지식 베이스 쓰기는 별도 롤 `klicklab_agent`가 담당)
    - RLS 정책: `sdk_key = current_setting('app.sdk_key')` — 실행기는 트랜잭션마다 `SET LOCAL app.sdk_key = <JWT의 sdk_key>` 설정. LLM이 `sdk_key` 조건을 빼먹거나 다른 값을 넣어도 다른 테넌트 데이터는 보이지 않는다.
+     - (Phase 4 변경) `app.sdk_key`는 쿼리 안의 `set_config`로 바꿀 수 있어, V5에서 읽기 전용 롤이 모르는 테넌트 토큰(`app.tenant_token`) 기준으로 바꿨다.
 3. **실행 제한**
    - `SET LOCAL statement_timeout = '5s'`, `default_transaction_read_only = on`
    - 실행 전 `EXPLAIN (FORMAT JSON)`으로 예상 비용 확인, 임계값 초과 시 집계 테이블 사용을 권하는 메시지로 반려
@@ -254,7 +254,7 @@ CREATE TABLE agent_steps (
 );
 
 CREATE TABLE agent_knowledge ( ... );       -- 6.4 참고
--- + klicklab_agent 롤, GRANT, RLS 정책
+-- + klicklab_agent / klicklab_agent_ro 롤, GRANT, RLS 정책
 ```
 
 ### 6.7 프론트엔드 (`/dashboard/agent`)
@@ -282,46 +282,62 @@ CREATE TABLE agent_knowledge ( ... );       -- 6.4 참고
 
 ### Phase 0. 준비
 
-- [ ] `agent/` 프로젝트 골격 (uv, FastAPI, ruff, pytest)
-- [ ] `V4__agent.sql`: 실행 로그 테이블, `klicklab_agent` 롤, RLS 정책
-- [ ] 시드 적재 + 집계 백필 후 데모 계정으로 로컬 환경 확인
+- [x] `agent/` 프로젝트 골격 (uv, FastAPI, ruff, pytest)
+- [x] `V4__agent.sql`: 실행 로그 테이블, `klicklab_agent` 롤, RLS 정책
+- [x] 시드 적재 + 집계 백필 후 데모 계정으로 로컬 환경 확인
+
+- 작업 로그: [Phase 0 골격 및 V4 마이그레이션](../logs/2026-11-11/01-에이전트_Phase0_골격_및_V4_마이그레이션.md)
 
 ### Phase 1. 단일 턴 Text-to-SQL
 
-- [ ] JWT 검증 의존성, `sdk_key` 주입
-- [ ] `sql/guard.py`, `sql/executor.py` + 단위 테스트(차단 케이스 위주)
-- [ ] 스키마 요약을 프롬프트에 넣고 질문 → SQL 1회 생성 → 실행 → 자연어 답변
-- [ ] `golden_sql.yaml` 초안 20문항, 기준 정확도 측정
+- [x] JWT 검증 의존성, `sdk_key` 주입
+- [x] `sql/guard.py`, `sql/executor.py` + 단위 테스트(차단 케이스 위주)
+- [x] 스키마 요약을 프롬프트에 넣고 질문 → SQL 1회 생성 → 실행 → 자연어 답변
+- [x] `golden_sql.yaml` 초안 20문항, 기준 정확도 측정
+
+- 작업 로그: [Phase 1 단일 턴 Text-to-SQL (K-EXAONE 2.5)](../logs/2026-11-11/02-에이전트_Phase1_단일턴_Text-to-SQL.md)
 
 ### Phase 2. Tool Loop와 실행 예산
 
-- [ ] Claude tool use 기반 루프, 4개 툴, 실패 결과 피드백을 통한 자가 수정
-- [ ] 난이도 분류기와 예산 관리, 강제 종료 시 요약
-- [ ] `final_answer` 근거 연결 검증
-- [ ] SSE 스트리밍, `agent_runs`/`agent_steps` 적재
+- [x] Claude tool use 기반 루프, 4개 툴, 실패 결과 피드백을 통한 자가 수정
+- [x] 난이도 분류기와 예산 관리, 강제 종료 시 요약
+- [x] `final_answer` 근거 연결 검증
+- [x] SSE 스트리밍, `agent_runs`/`agent_steps` 적재
+
+- 작업 로그: [Phase 2 Tool Loop와 실행 예산 (Groq gpt-oss-120b)](../logs/2026-11-11/03-에이전트_Phase2_Tool_Loop와_실행_예산.md)
 
 ### Phase 3. 지식 베이스 (RAG)
 
-- [ ] 시맨틱 레이어 YAML 작성 (테이블, 지표, 예시, 용어)
-- [ ] 인덱서·하이브리드 검색, `search_knowledge` 툴 연결
-- [ ] 프롬프트 직접 주입 방식 vs RAG 방식 정확도·토큰 비교
+- [x] 시맨틱 레이어 YAML 작성 (테이블, 지표, 예시, 용어)
+- [x] 인덱서·하이브리드 검색, `search_knowledge` 툴 연결
+- [x] 프롬프트 직접 주입 방식 vs RAG 방식 정확도·토큰 비교 (단일 턴 기준. Tool Loop 비교는 Phase 4)
+
+- 작업 로그: [Phase 3 지식 베이스 RAG (K-EXAONE 2.5)](../logs/2026-11-11/04-에이전트_Phase3_지식_베이스_RAG.md)
 
 ### Phase 4. 평가 자동화
 
-- [ ] 평가셋 확장 (golden 40+, diagnose 10+, 안전성 15)
-- [ ] `run_eval.py`, LLM-as-judge, 리포트 생성
-- [ ] GitHub Actions에서 PR마다 축소 평가셋 회귀 실행
+- [x] 평가셋 확장 (golden 44, diagnose 12, 안전성 22)
+- [x] `run_eval.py`, LLM-as-judge, 리포트 생성 (Tool Loop·judge 실측은 LLM 한도로 미실행)
+- [x] GitHub Actions에서 PR마다 축소 평가셋 회귀 실행 (워크플로 작성, GitHub 실행은 미확인)
+- 안전성 평가에서 찾은 RLS 우회(guard 우회 시 `set_config`로 테넌트 전환)를 V5 테넌트 토큰으로 수정
+
+- 작업 로그: [Phase 4 평가 자동화 (Groq 미사용, K-EXAONE 2.5 일부 실측)](../logs/2026-11-11/05-에이전트_Phase4_평가_자동화.md)
 
 ### Phase 5. 백오피스 UI
 
-- [ ] `/dashboard/agent` 탭, 채팅·실행 단계·SQL·결과 표·차트
-- [ ] 실행 기록 목록·상세, 피드백 버튼
+- [x] `/dashboard/agent` 탭, 채팅·실행 단계·SQL·결과 표·차트
+- [x] 실행 기록 목록·상세, 피드백 버튼 (브라우저 실행 확인은 미완료)
+
+- 작업 로그: [Phase 5 백오피스 UI](../logs/2026-11-12/01-에이전트_Phase5_백오피스_UI.md)
 
 ### Phase 6. 관측과 배포
 
-- [ ] Langfuse 연동 (트레이스, 토큰·비용, 평가 점수)
-- [ ] `agent/Dockerfile`, `docker-compose.yml`에 agent·langfuse 서비스 추가
-- [ ] AWS 배포 (ECS 또는 EC2 + RDS), 시크릿 관리, Prometheus 메트릭(`/metrics`) 노출
+- [x] Langfuse 연동 (트레이스, 토큰·비용, 평가 점수)
+- [x] `agent/Dockerfile`, `docker-compose.yml`에 agent·langfuse 서비스 추가 (backend·frontend 이미지 포함, 전체 기동 확인)
+- [ ] ~~AWS 배포 (ECS 또는 EC2 + RDS), 시크릿 관리~~ (실제 배포 계획이 없어 제외)
+- [x] Prometheus 메트릭(`/metrics`) 노출
+
+- 작업 로그: [Phase 6 관측과 Docker 구성](../logs/2026-11-12/04-에이전트_Phase6_관측과_Docker_구성.md)
 
 ## 8. 리스크와 대응
 

@@ -1,0 +1,156 @@
+# 지표 문서. 계산식은 백엔드 RollupService·대시보드 Controller 의 집계 SQL 기준
+#  * sql: 집계식 (GROUP BY 는 질문에 맞게 붙인다)
+
+- name: unique_visitors
+  title: 순 방문자 수 (DAU / WAU / MAU)
+  aliases: [방문자 수, 사용자 수, 유저 수, 활성 사용자, 일일 활성 사용자]
+  definition: 기간 안에 한 번 이상 활동한 방문자(client_id) 수
+  sql: |
+    -- 하루: count(*) / 여러 날: count(DISTINCT client_id)
+    SELECT count(DISTINCT client_id) AS visitors FROM agg_daily_users WHERE <기간>
+  source_table: agg_daily_users
+  notes:
+    - 일평균 순 방문자는 날짜별 count(*) 를 구한 뒤 avg() 한다
+    - daily_metrics.visitors 는 정의가 달라 값이 다르다. 방문자 수는 agg_daily_users 기준으로 답한다
+
+- name: sessions
+  title: 세션 수
+  aliases: [방문 수, 세션]
+  definition: 세션 시작 날짜 기준 세션 수
+  sql: sum(sessions)
+  source_table: agg_traffic_hourly, agg_user_session_daily, agg_user_session_hourly
+  notes:
+    - 유입 경로·시간대별은 agg_traffic_hourly, 성별·연령대별은 agg_user_session_daily, 기기·지역별은 agg_user_session_hourly
+    - 세 테이블의 기간 전체 sum(sessions) 은 같다
+
+- name: page_views
+  title: 페이지뷰
+  aliases: [PV, 조회수, 페이지 조회 수]
+  definition: page_view 이벤트 수
+  sql: sum(page_views)
+  source_table: agg_page_daily
+
+- name: bounce_rate
+  title: 이탈률 (bounce rate)
+  aliases: [바운스율, 반송률, 이탈 비율]
+  definition: 참여하지 않은 세션(10초 미만 체류이면서 1페이지 이하 조회, 전환 없음)의 비율
+  sql: sum(bounced_sessions) * 100.0 / NULLIF(sum(sessions), 0)
+  source_table: agg_traffic_hourly
+  notes:
+    - 단위는 %. 유입 경로·랜딩 페이지별로 볼 수 있다
+    - 페이지에서 세션이 끝난 비율은 이탈률이 아니라 페이지 종료율(exit_rate)이다
+
+- name: engagement_rate
+  title: 참여율 (참여도)
+  aliases: [참여도, engagement, 참여 방문자 비율]
+  definition: 방문자 중 참여 세션(10초 이상 체류, 2페이지 이상 조회, 전환 중 하나라도 해당)이 있었던 방문자 비율
+  sql: sum(funnel_engaged) * 100.0 / NULLIF(sum(funnel_visits), 0)
+  source_table: agg_traffic_hourly
+  notes:
+    - 페이지 단위 참여도는 페이지 평균 체류 시간(avg_time_on_page)과 페이지 종료율(exit_rate)로 본다
+
+- name: conversion_rate
+  title: 전환율
+  aliases: [전환 비율, CVR]
+  definition: 세션 대비 전환 이벤트(활성 전환 이벤트 is_payment, is_signup) 건수 비율
+  sql: sum(conversions) * 100.0 / NULLIF(sum(sessions), 0)
+  source_table: agg_traffic_hourly
+  notes:
+    - 방문자 기준 전환율이 필요하면 sum(funnel_converted) * 100.0 / NULLIF(sum(funnel_visits), 0)
+
+- name: conversions
+  title: 전환 수
+  aliases: [전환 건수, 전환]
+  definition: 전환 이벤트(is_payment, is_signup) 발생 건수
+  sql: sum(conversions)
+  source_table: agg_traffic_hourly
+
+- name: revenue
+  title: 매출 (전환 금액)
+  aliases: [결제 금액, 매출액, 거래액, 구매 금액]
+  definition: 결제 이벤트 금액 합 (원)
+  sql: sum(conversion_value_sum)
+  source_table: agg_traffic_hourly
+  notes:
+    - 주문 단위 금액은 events 의 is_payment 이벤트 (properties->>'value')::numeric
+    - 객단가 = 매출 / 결제 건수
+
+- name: payments
+  title: 결제 완료 건수
+  aliases: [결제 수, 구매 수, 주문 수, 결제 건수]
+  definition: is_payment 이벤트 수
+  sql: |
+    SELECT sum(event_count) FROM agg_event_daily WHERE event_name = 'is_payment' AND <기간>
+  source_table: agg_event_daily
+
+- name: signups
+  title: 회원가입 수
+  aliases: [가입자 수, 신규 가입]
+  definition: is_signup 이벤트 수
+  sql: |
+    SELECT sum(event_count) FROM agg_event_daily WHERE event_name = 'is_signup' AND <기간>
+  source_table: agg_event_daily
+
+- name: clicks
+  title: 클릭 수
+  aliases: [클릭, 클릭 이벤트]
+  definition: auto_click 이벤트 수
+  sql: |
+    SELECT sum(event_count) FROM agg_event_daily WHERE event_name = 'auto_click' AND <기간>
+  source_table: agg_event_daily, agg_event_page_daily
+  notes:
+    - 클릭한 요소별 집계는 events.element (event_name = 'auto_click')
+
+- name: avg_session_duration
+  title: 평균 세션 시간
+  aliases: [평균 체류 시간, 세션 길이, 세션 지속 시간]
+  definition: 세션 하나의 평균 지속 시간 (초)
+  sql: sum(session_duration_sum)::numeric / NULLIF(sum(sessions), 0)
+  source_table: agg_user_session_daily, agg_user_session_hourly
+
+- name: avg_time_on_page
+  title: 페이지 평균 체류 시간
+  aliases: [페이지 체류 시간, 페이지 머문 시간]
+  definition: 페이지뷰 1회당 평균 체류 시간 (초)
+  sql: sum(time_on_page_sum) / NULLIF(sum(page_views), 0)
+  source_table: agg_page_daily
+
+- name: exit_rate
+  title: 페이지 종료율
+  aliases: [종료율, exit rate, 페이지 이탈]
+  definition: 페이지뷰 중 그 페이지에서 세션이 끝난 비율
+  sql: sum(exits) * 100.0 / NULLIF(sum(page_views), 0)
+  source_table: agg_page_daily
+
+- name: payment_session_rate
+  title: 결제 세션 비율 (세션 기준 결제 전환율)
+  aliases: [결제 전환율, 구매 전환율, 결제한 세션 비율]
+  definition: 세션 중 결제(is_payment) 이벤트가 있었던 세션의 비율
+  sql: |
+    count(DISTINCT session_id) FILTER (WHERE event_name = 'is_payment') * 100.0
+      / NULLIF(count(DISTINCT session_id), 0)
+  source_table: events
+  notes:
+    - events 를 쓰므로 timestamp 기간 조건이 필요하다
+    - 기기·브라우저 같은 세션 속성별로 나눌 수 있다
+
+- name: page_transition_rate
+  title: 페이지 이동 전환율 (퍼널 단계 전환)
+  aliases: [퍼널 전환율, 단계 전환율, 다음 단계 이동률, 결제 단계 이동]
+  definition: 이전 페이지를 본 세션 중 다음 페이지로 이동한 세션 비율
+  sql: |
+    -- 예 /cart → /checkout
+    sum(l.sessions) FILTER (WHERE l.source = '/cart' AND l.target = '/checkout') * 100.0
+      / NULLIF((SELECT sum(sessions) FROM agg_page_daily p WHERE p.page_path = '/cart' AND <기간>), 0)
+  source_table: agg_funnel_links_daily, agg_page_daily
+  notes:
+    - 기기별 단계 전환은 집계 테이블에 없으므로 events 에서 세션별로 계산한다
+
+- name: new_returning_visitors
+  title: 신규 / 재방문 방문자
+  aliases: [신규 방문자, 재방문자, 기존 방문자, 신규 비율]
+  definition: 처음 방문한 방문 수와 이전 방문 이력이 있는 방문 수
+  sql: sum(new_visitors), sum(existing_visitors)
+  source_table: daily_metrics
+  notes:
+    - 배치 집계라 최근 날짜(어제)가 아직 없을 수 있다

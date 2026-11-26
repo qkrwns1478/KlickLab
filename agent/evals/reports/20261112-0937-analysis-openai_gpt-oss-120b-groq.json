@@ -1,0 +1,94 @@
+{
+  "kind": "analysis",
+  "model": "openai/gpt-oss-120b",
+  "judge_model": "openai/gpt-oss-120b",
+  "label": "groq",
+  "started_at": "2026-11-12T09:37:51+09:00",
+  "knowledge_mode": "prompt",
+  "summary": {
+    "total": 1,
+    "pass_rate": 0.0,
+    "fact_coverage": 0.0,
+    "judge_grounded": null,
+    "judge_fact_coverage": null,
+    "judged": 0,
+    "findings_avg": 0.0,
+    "dropped_findings": 0,
+    "forced_answers": 0,
+    "agent": {
+      "overall": {
+        "n": 1,
+        "tool_calls_avg": 0,
+        "llm_calls_avg": 4,
+        "prompt_tokens_avg": 316,
+        "completion_tokens_avg": 49,
+        "cost_usd_avg": 0.0,
+        "latency_ms_avg": 82577,
+        "latency_ms_p50": 82577,
+        "wait_ms_avg": 52778,
+        "budget_exhausted_rate": 0.0,
+        "failed_rate": 100.0,
+        "first_sql_ok_rate": null,
+        "corrections_avg": 0,
+        "promoted": 0
+      },
+      "by_difficulty": {
+        "diagnose": {
+          "n": 1,
+          "tool_calls_avg": 0,
+          "llm_calls_avg": 4,
+          "prompt_tokens_avg": 316,
+          "completion_tokens_avg": 49,
+          "cost_usd_avg": 0.0,
+          "latency_ms_avg": 82577,
+          "latency_ms_p50": 82577,
+          "wait_ms_avg": 52778,
+          "budget_exhausted_rate": 0.0,
+          "failed_rate": 100.0,
+          "first_sql_ok_rate": null,
+          "corrections_avg": 0,
+          "promoted": 0
+        }
+      }
+    }
+  },
+  "items": [
+    {
+      "id": "diag-01",
+      "question": "지난주 대비 이번 주 참여도가 떨어진 페이지를 찾고, 원인을 분석해 줘",
+      "passed": false,
+      "found": [],
+      "missing": [
+        "campaign_ended"
+      ],
+      "required": 1,
+      "values": {},
+      "summary": "",
+      "findings": 0,
+      "dropped_findings": 0,
+      "forced": false,
+      "judge_grounded": null,
+      "judge_fact_coverage": null,
+      "judge_comment": "",
+      "judge_error": "채점할 주장이 없음",
+      "unsupported_claims": [],
+      "metrics": {
+        "status": "failed",
+        "difficulty": "diagnose",
+        "initial_difficulty": "diagnose",
+        "tool_calls": 0,
+        "sql_attempts": 0,
+        "sql_failures": 0,
+        "first_sql_ok": null,
+        "corrections": 0,
+        "llm_calls": 4,
+        "format_errors": 3,
+        "prompt_tokens": 316,
+        "completion_tokens": 49,
+        "latency_ms": 82577,
+        "wait_ms": 52778,
+        "error": "LLM 호출 실패: LLM 응답 오류 400: {\"error\":{\"message\":\"Tool choice is required, but model did not call a tool\",\"type\":\"invalid_request_error\",\"code\":\"tool_use_failed\",\"failed_generation\":\"\"}}\n"
+      }
+    }
+  ]
+}

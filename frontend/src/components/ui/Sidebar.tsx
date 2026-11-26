@@ -6,6 +6,7 @@ import {
   Settings, 
   FileText,
   Target,
+  Sparkles,
 } from 'lucide-react';
 import clsx from 'clsx';
 
@@ -40,6 +41,12 @@ const tabs = [
     label: '참여도 분석',
     icon: UserRoundCheck,
     description: '체류시간 분석'
+  },
+  {
+    id: 'agent',
+    label: '분석 에이전트',
+    icon: Sparkles,
+    description: '자연어 질문 분석'
   },
   {
     id: 'reports',
