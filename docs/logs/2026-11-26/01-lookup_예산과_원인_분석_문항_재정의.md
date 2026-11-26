@@ -93,4 +93,4 @@
 
 - 저장소에 `OPENAI_API_KEY` 시크릿을 등록하면, `agent/` 등을 건드린 PR에 push할 때마다 LLM 단계(golden 축소셋 10문항 + 에이전트 안전성 5문항, 실행당 약 4~5만 토큰 추정)가 돌게 된다.
 - LLM 단계의 조건에 `github.event_name == 'workflow_dispatch'`를 추가했다. PR에서는 lint·단위 테스트·DB 통합 테스트·`check`·검색 평가만 돌고, LLM 평가는 Actions에서 수동으로 실행할 때만 돈다(`full` 입력으로 전체 평가셋 선택 가능).
-- 워크플로 머리 주석도 이에 맞췄다.
+- 추가 수정: 워크플로 전체를 수동 실행으로 바꿨다. `pull_request` 트리거를 지웠고, LLM 단계의 `workflow_dispatch` 조건은 불필요해져 되돌렸다. 이제 `test`·`eval` job도 PR에서 자동으로 돌지 않는다.
