@@ -12,6 +12,12 @@
 #
 # 아래 비밀번호·키 기본값은 로컬 개발용이다. 외부에 노출하는 환경에서는 .env 로 모두 바꾼다.
 
+# 백엔드와 에이전트가 함께 쓰는 값 (백엔드가 발급한 토큰을 에이전트가 같은 시크릿으로 검증한다)
+x-shared-env: &shared-env
+  JWT_SECRET: ${JWT_SECRET:?JWT_SECRET 을 .env 에 32바이트 이상으로 채운다}
+  CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:5173,http://127.0.0.1:5173,http://localhost:8080,http://127.0.0.1:8080}
+  TZ: Asia/Seoul
+
 x-langfuse-env: &langfuse-env
   DATABASE_URL: postgresql://langfuse:${LANGFUSE_DB_PASSWORD:-langfuse}@langfuse-db:5432/langfuse
   SALT: ${LANGFUSE_SALT:-klicklab-dev-salt}
@@ -67,14 +73,12 @@ services:
   backend:
     build: ./backend
     environment:
+      <<: *shared-env
       DB_URL: jdbc:postgresql://postgres:5432/klicklab
       DB_USERNAME: ${DB_USERNAME:-klicklab}
       DB_PASSWORD: ${DB_PASSWORD:-klicklab}
-      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET 을 .env 에 32바이트 이상으로 채운다}
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:?JWT_REFRESH_SECRET 을 .env 에 32바이트 이상으로 채운다}
       AUTH_AUTO_APPROVE: ${AUTH_AUTO_APPROVE:-false}
-      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:8080,http://127.0.0.1:8080}
-      TZ: Asia/Seoul
     ports:
       - "${BACKEND_PORT:-4000}:4000"
       - "127.0.0.1:${BACKEND_METRICS_PORT:-9091}:9091" # Actuator: /health, /metrics
@@ -109,6 +113,7 @@ services:
       args:
         WITH_EMBEDDING: ${AGENT_WITH_EMBEDDING:-false}
     environment:
+      <<: *shared-env
       DB_HOST: postgres
       DB_PORT: "5432"
       DB_NAME: klicklab
@@ -116,8 +121,6 @@ services:
       DB_RO_PASSWORD: ${AGENT_DB_RO_PASSWORD:-agent_ro}
       DB_RW_USER: klicklab_agent
       DB_RW_PASSWORD: ${AGENT_DB_RW_PASSWORD:-agent}
-      JWT_SECRET: ${JWT_SECRET}
-      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:8080,http://127.0.0.1:8080}
       LLM_PROVIDER: ${LLM_PROVIDER:-openai}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       OPENAI_BASE_URL: ${OPENAI_BASE_URL:-https://api.openai.com/v1}
@@ -132,7 +135,6 @@ services:
       LANGFUSE_PUBLIC_KEY: ${LANGFUSE_PUBLIC_KEY:-pk-lf-klicklab-dev}
       LANGFUSE_SECRET_KEY: ${LANGFUSE_SECRET_KEY:-sk-lf-klicklab-dev}
       LANGFUSE_ENVIRONMENT: ${LANGFUSE_ENVIRONMENT:-development}
-      TZ: Asia/Seoul
     extra_hosts:
       - "host.docker.internal:host-gateway"
     ports:

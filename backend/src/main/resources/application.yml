@@ -1,9 +1,9 @@
 spring:
   application:
     name: klicklab
-  # backend/.env 파일이 있으면 환경변수처럼 읽는다 (KEY=VALUE)
+  # 루트 .env(JWT·CORS 등 공통 값) → backend/.env 순으로 읽는다 (KEY=VALUE). 뒤에 읽은 값과 환경변수가 우선한다
   config:
-    import: optional:file:.env[.properties]
+    import: optional:file:../.env[.properties],optional:file:.env[.properties]
   datasource:
     url: ${DB_URL:jdbc:postgresql://localhost:${DB_PORT:5432}/klicklab}
     username: ${DB_USERNAME:klicklab}

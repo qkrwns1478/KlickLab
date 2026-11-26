@@ -161,15 +161,19 @@ docker compose up -d          # 5432 포트가 사용 중이면: DB_PORT=5433 do
 스키마는 애플리케이션 기동 시 Flyway(`src/main/resources/db/migration`)가 자동으로 생성합니다.
 
 ### 3. 환경변수 설정
-`backend/.env.example`을 복사해 `backend/.env`를 만들고 값을 채워주세요. (`.env`는 Spring Boot가 자동으로 읽습니다)
+백엔드와 에이전트가 함께 쓰는 JWT·CORS 값은 루트 `.env`에 한 번만 둡니다. 두 서버는 루트 `.env`를 먼저 읽고, 서비스별 `.env`(`backend/.env`, `agent/.env`)로 같은 키를 덮어씁니다.
 - `JWT_SECRET`, `JWT_REFRESH_SECRET`는 HS256 서명을 위해 **32바이트 이상**이어야 합니다.
 
 ```bash
+cp .env.example .env                  # JWT_SECRET, JWT_REFRESH_SECRET, OPENAI_API_KEY 입력
+cp backend/.env.example backend/.env  # DB 접속 정보 등 백엔드 전용 값
+```
+
+```bash
+# backend/.env
 DB_URL=jdbc:postgresql://localhost:5432/klicklab
 DB_USERNAME=klicklab
 DB_PASSWORD=klicklab
-JWT_SECRET=
-JWT_REFRESH_SECRET=
 AUTH_AUTO_APPROVE=false
 ```
 
@@ -205,7 +209,7 @@ cd backend
 docker exec -it klicklab-postgres psql -U klicklab -d klicklab   -c "ALTER ROLE klicklab_agent_ro LOGIN PASSWORD 'agent_ro'"   -c "ALTER ROLE klicklab_agent LOGIN PASSWORD 'agent'"
 
 cd agent
-cp .env.example .env          # JWT_SECRET(backend/.env와 동일), OPENAI_API_KEY 등을 채움. DB_PORT는 실제 DB 포트에 맞춤
+cp .env.example .env          # DB_PORT 는 실제 DB 포트에 맞춤 (JWT_SECRET 은 루트 .env 에서 읽음)
 uv sync
 uv run uvicorn app.main:app --port 8000   # http://localhost:8000/agent/health
 ```

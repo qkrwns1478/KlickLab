@@ -4,7 +4,8 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+    # 루트 .env(JWT·CORS 등 공통 값) → agent/.env 순으로 읽는다. 뒤의 파일과 환경변수가 우선한다
+    model_config = SettingsConfigDict(env_file=("../.env", ".env"), extra="ignore")
 
     db_host: str = "localhost"
     db_port: int = 5433
@@ -15,7 +16,7 @@ class Settings(BaseSettings):
     db_rw_password: str = ""
 
     jwt_secret: str = ""
-    cors_allowed_origins: str = "http://localhost:5173,http://127.0.0.1:5173"
+    cors_allowed_origins: str = "http://localhost:5173,http://127.0.0.1:5173,http://localhost:8080,http://127.0.0.1:8080"  # 백엔드 기본값과 같게 둔다
 
     # LLM 공급자: openai(기본, 2026-11-25~) / local / groq / exaone.
     # Groq·EXAONE 은 무료 한도(TPD 등) 때문에 평가·운영에 더 쓰지 않는다
