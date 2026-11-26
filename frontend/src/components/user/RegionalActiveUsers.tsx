@@ -1,6 +1,5 @@
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { getRangeLabel } from '../../utils/getRangeLabel';
-import dayjs from 'dayjs';
 import { REGION_MAPPING } from '../../utils/regionUtils';
 
 interface RegionData {
@@ -57,7 +56,7 @@ const COLOR_LEGEND = [
 ];
 
 
-export const RegionalActiveUsers: React.FC<RegionalActiveUsersProps> = ({ dateRange, onDataSourceUpdate, data, loading: externalLoading }) => {
+export const RegionalActiveUsers: React.FC<RegionalActiveUsersProps> = ({ dateRange, data, loading: externalLoading }) => {
   const [selectedRegion, setSelectedRegion] = useState<string | null>(null);
   const [hoveredRegion, setHoveredRegion] = useState<string | null>(null);
   const [mousePosition, setMousePosition] = useState<MousePosition>({ x: 0, y: 0 });
@@ -86,7 +85,6 @@ export const RegionalActiveUsers: React.FC<RegionalActiveUsersProps> = ({ dateRa
       const dataArray = apiData || [];
 
       // country 세그먼트 확인 (실제 데이터 구조)
-      const countrySegments = dataArray.filter((row: any) => row.segment_type === 'country');
 
       // city 세그먼트에서 지역 정보 추출 (country는 KR 고정, city는 dist_value에 있음)
       const cityMap: Record<string, number> = {};
@@ -116,8 +114,6 @@ export const RegionalActiveUsers: React.FC<RegionalActiveUsersProps> = ({ dateRa
         .reduce((sum, [, count]) => sum + count, 0);
 
       // 알려지지 않은 지역들 로그 출력
-      const unknownRegions = Object.entries(cityMap)
-        .filter(([englishName]) => !REGION_MAPPING[englishName]);
 
       // 총 사용자 수는 알려진 지역 + 기타 지역
       const totalUsers = knownRegionUsers + unknownRegionUsers;
@@ -198,7 +194,7 @@ export const RegionalActiveUsers: React.FC<RegionalActiveUsersProps> = ({ dateRa
       }
 
       setRegionData(finalRegionData);
-    } catch (error) {
+    } catch {
       setRegionData([]);
     }
   };
@@ -208,9 +204,6 @@ export const RegionalActiveUsers: React.FC<RegionalActiveUsersProps> = ({ dateRa
     return new Map(regionData.map(region => [region.id, region]));
   }, [regionData]);
 
-  const totalUsers = useMemo(() => {
-    return regionData.reduce((sum, region) => sum + region.users, 0);
-  }, [regionData]);
 
   const topRegions = useMemo(() => {
     // 기타 지역을 제외한 상위 10개 지역
@@ -231,7 +224,7 @@ export const RegionalActiveUsers: React.FC<RegionalActiveUsersProps> = ({ dateRa
     const isHovered = hoveredRegion === regionId;
     const isSelected = selectedRegion === regionId;
 
-    let fillColor = data?.color || '#e5e7eb';
+    const fillColor = data?.color || '#e5e7eb';
     let filter = 'none';
 
     if (isHovered) {
@@ -488,7 +481,7 @@ export const RegionalActiveUsers: React.FC<RegionalActiveUsersProps> = ({ dateRa
             <h3 className="text-sm font-medium text-gray-900">상위 10개 지역 & 기타</h3>
           </div>
           <div className="px-2 pb-2 space-y-2">
-            {topRegions.map((region, index) => (
+            {topRegions.map((region) => (
               <div
                 key={region.id}
                 className={`cursor-pointer ${selectedRegion === region.id ? 'opacity-100' : 'opacity-80 hover:opacity-100'

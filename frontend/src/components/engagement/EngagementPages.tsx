@@ -65,7 +65,7 @@ const EngagementPages: React.FC<EngagementPagesProps> = ({ pageStats }) => {
         title="페이지 경로"
         onSortChange={(KEY) => { setSortKey(KEY); }}
       >
-        {(selectedKeys, chartData, lineDefs, unit) => (
+        {(selectedKeys, _chartData, _lineDefs, unit) => (
           <HorizontalLineChart
             data={(() => {
               const uniqueDates = [...new Set(pageStats.map(d => d.date))].sort();

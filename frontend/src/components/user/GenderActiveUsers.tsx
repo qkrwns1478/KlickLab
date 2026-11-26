@@ -1,6 +1,5 @@
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { getRangeLabel } from '../../utils/getRangeLabel';
-import dayjs from 'dayjs';
 
 // 타입 정의
 type GenderId = 'male' | 'female' | 'unknown';
@@ -92,8 +91,6 @@ export const GenderActiveUsers: React.FC<GenderActiveUsersProps> = ({ dateRange,
       .reduce((sum, [, count]) => sum + count, 0);
 
     // 알려지지 않은 성별들 로그 출력
-    const unknownGenders = Object.entries(genderMap)
-      .filter(([gender]) => gender !== 'male' && gender !== 'female');
 
     // 총 사용자 수 계산 (알려진 성별 + 알 수 없음)
     const totalUsers = knownGenderUsers + unknownGenderUsers;

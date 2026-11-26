@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Users, TrendingUp } from 'lucide-react';
+import { Users } from 'lucide-react';
 import dayjs from 'dayjs';
 import { getRangeLabel } from '../../utils/getRangeLabel';
 
@@ -7,17 +7,6 @@ interface UserSegmentSummaryProps {
   refreshKey?: number;
   dateRange?: { startDate: Date; endDate: Date; key: string };
   data?: any[];
-}
-
-interface SegmentData {
-  segmentValue: string;
-  totalUsers: number;
-  totalClicks: number;
-  userDistribution: {
-    ageGroup?: Record<string, number>;
-    gender?: Record<string, number>;
-    device?: Record<string, number>;
-  };
 }
 
 export const UserSegmentSummary: React.FC<UserSegmentSummaryProps> = ({ refreshKey, dateRange, data }) => {

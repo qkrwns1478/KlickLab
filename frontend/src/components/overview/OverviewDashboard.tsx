@@ -1,4 +1,4 @@
-import React, { forwardRef, useState, useEffect, useCallback } from 'react';
+import { forwardRef, useState, useEffect, useCallback } from 'react';
 import { addDays } from 'date-fns';
 import dayjs from 'dayjs';
 import { KpiAndTrendSection } from './KpiAndTrendSection';
@@ -69,7 +69,15 @@ async function fetchRealtimeData() {
 }
 
 // Google Analytics 스타일의 개요 대시보드
-export const OverviewDashboard = forwardRef((props, ref) => {
+export interface OverviewDashboardHandle {
+  fetchStats?: () => void;
+}
+
+export interface OverviewDashboardProps {
+  onLastUpdated?: (lastUpdated: Date) => void;
+}
+
+export const OverviewDashboard = forwardRef<OverviewDashboardHandle, OverviewDashboardProps>(() => {
   // 날짜 범위 상태 및 핸들러 추가
   const [dateRange, setDateRange] = useState([
     { startDate: addDays(new Date(), -6), endDate: new Date(), key: 'selection' }

@@ -1,25 +1,22 @@
 import React, { useState, useRef } from 'react';
 import HeaderBar from '../ui/Headerbar';
 import { Sidebar } from '../ui/Sidebar';
-import { GlobalFilterBar } from '../ui/GlobalFilterBar';
-import { RefreshCw } from 'lucide-react';
-import { Routes, Route, useNavigate, useLocation, Navigate, Outlet } from 'react-router-dom';
-import clsx from 'clsx';
+import { Routes, Route, useNavigate, useLocation, Navigate } from 'react-router-dom';
 
 // 새로운 탭별 대시보드 컴포넌트들
 import { OverviewDashboard } from '../overview/OverviewDashboard';
+import type { OverviewDashboardHandle } from '../overview/OverviewDashboard';
 import { UserDashboard } from '../user/UserDashboard';
-import { TrafficDashboard } from '../traffic/TrafficDashboard';
 import { EngagementDashboard } from '../engagement/EngagementDashboard';
 import { ReportDashboard } from '../report/ReportDashboard';
 import { SettingsDashboard } from '../settings/SettingsDashboard';
-import { ConversionDashboard } from '../conversion/ConversionDashboard';
 import { AcquisitionDashboard } from '../acquisition/AcquisitionDashboard';
+import { AgentDashboard } from '../agent/AgentDashboard';
 
 export const Dashboard: React.FC = () => {
   // activeTab, setActiveTab 제거
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(true);
-  const overviewRef = useRef<any>(null);
+  const overviewRef = useRef<OverviewDashboardHandle>(null);
   const [overviewLastUpdated, setOverviewLastUpdated] = useState<Date | null>(null);
   const navigate = useNavigate();
   const location = useLocation();
@@ -55,8 +52,8 @@ export const Dashboard: React.FC = () => {
     engagement: '참여도 분석',
     reports: '리포트',
     settings: '설정',
-    conversion: '전환율',
     acquisition: '유입 분석',
+    agent: '분석 에이전트',
   };
   const tabDescriptions: Record<string, string> = {
     overview: '전체 개요 및 주요 지표',
@@ -65,8 +62,8 @@ export const Dashboard: React.FC = () => {
     engagement: '체류시간 및 참여도 분석',
     reports: '상세 리포트 및 데이터 내보내기',
     settings: '시스템 설정 및 계정 관리',
-    conversion: '전환율 및 퍼널 분석',
     acquisition: '유입 소스별 분석 및 전환율',
+    agent: '자연어 질문으로 데이터 조회 및 원인 분석',
   };
 
   return (
@@ -122,7 +119,6 @@ export const Dashboard: React.FC = () => {
             </header>
 
             {/* 전역 필터 바 */}
-            {/* <GlobalFilterBar /> */}
           </div>
 
           {/* 메인 콘텐츠 영역: 탭별 라우팅 */}
@@ -132,12 +128,11 @@ export const Dashboard: React.FC = () => {
               <Routes>
                 <Route path="overview" element={<OverviewDashboard ref={overviewRef} onLastUpdated={handleOverviewUpdate} />} />
                 <Route path="users" element={<UserDashboard />} />
-                {/* <Route path="traffic" element={<TrafficDashboard />} /> */}
                 <Route path="engagement" element={<EngagementDashboard />} />
                 <Route path="reports" element={<ReportDashboard />} />
                 <Route path="settings" element={<SettingsDashboard />} />
-                <Route path="conversion" element={<ConversionDashboard />} />
                 <Route path="acquisition" element={<AcquisitionDashboard />} />
+                <Route path="agent" element={<AgentDashboard />} />
                 <Route path="" element={<Navigate to="/dashboard/overview" replace />} />
                 <Route path="*" element={<Navigate to="/dashboard/overview" replace />} />
               </Routes>

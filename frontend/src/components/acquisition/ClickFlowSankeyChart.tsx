@@ -10,7 +10,7 @@ interface ClickFlowSankeyChartProps {
   refreshKey: number;
 }
 
-export const ClickFlowSankeyChart: React.FC<ClickFlowSankeyChartProps> = ({ refreshKey }) => {
+export const ClickFlowSankeyChart: React.FC<ClickFlowSankeyChartProps> = () => {
   return (
     <div className="h-full w-full relative">
       <div className="grid grid-cols-4 gap-1 h-full items-center">

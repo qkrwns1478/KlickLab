@@ -77,13 +77,12 @@ const EngagementOverview: React.FC<Props> = ({
               },
             ]}
             selectedKey={selectedMetric2}
-            onSelect={setSelectedMetric2}
+            onSelect={(key) => setSelectedMetric2(key as Props['selectedMetric2'])}
           >
             <HorizontalLineChart
-              data={(selectedMetric2 === 'avgSessionSecs' ? avgSessionSecs : sessionsPerUsers).map((d) => ({
-                date: d.date,
-                [selectedMetric2]: selectedMetric2 === 'avgSessionSecs' ? d.avgSessionSeconds : d.sessionsPerUser,
-              }))}
+              data={selectedMetric2 === 'avgSessionSecs'
+                ? avgSessionSecs.map((d) => ({ date: d.date, [selectedMetric2]: d.avgSessionSeconds }))
+                : sessionsPerUsers.map((d) => ({ date: d.date, [selectedMetric2]: d.sessionsPerUser }))}
               lines={[
                 {
                   key: selectedMetric2,
@@ -213,13 +212,12 @@ const EngagementOverview: React.FC<Props> = ({
               { key: 'clickCounts', label: '클릭수', value: `${clickCounts.reduce((acc, d) => acc + d.totalClicks, 0).toLocaleString()}` },
             ]}
             selectedKey={selectedMetric}
-            onSelect={setSelectedMetric}
+            onSelect={(key) => setSelectedMetric(key as Props['selectedMetric'])}
           >
             <HorizontalLineChart
-              data={(selectedMetric === 'viewCounts' ? viewCounts : clickCounts).map((d) => ({
-                date: d.date,
-                [selectedMetric]: selectedMetric === 'viewCounts' ? d.totalViews : d.totalClicks,
-              }))}
+              data={selectedMetric === 'viewCounts'
+                ? viewCounts.map((d) => ({ date: d.date, [selectedMetric]: d.totalViews }))
+                : clickCounts.map((d) => ({ date: d.date, [selectedMetric]: d.totalClicks }))}
               lines={[{ key: selectedMetric, name: selectedMetric === 'viewCounts' ? '조회수' : '클릭수' }]}
               tooltipRenderer={(item) => (
                 <div className="text-sm">

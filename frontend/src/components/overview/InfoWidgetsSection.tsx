@@ -1,4 +1,5 @@
 import React from 'react';
+import type { LucideIcon } from 'lucide-react';
 import { TopClicks } from './TopClicks';
 import { PieChart, Globe, MousePointer } from 'lucide-react';
 
@@ -10,7 +11,25 @@ interface InfoWidgetsSectionProps {
 }
 
 // 위젯의 기본 프레임을 위한 컴포넌트
-const WidgetFrame = ({ title, children, icon: Icon }) => (
+interface WidgetFrameProps {
+  title: string;
+  children: React.ReactNode;
+  icon?: LucideIcon;
+}
+
+interface TableColumn {
+  key: string;
+  label: string;
+}
+
+interface SimpleTableProps {
+  data: Record<string, any>[];
+  columns: TableColumn[];
+  loading: boolean;
+  showBar?: boolean;
+}
+
+const WidgetFrame = ({ title, children, icon: Icon }: WidgetFrameProps) => (
   <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-4 md:p-6 h-full flex flex-col">
     <div className="flex items-center gap-2 mb-4">
       {Icon && <Icon className="w-5 h-5 text-gray-500" />}
@@ -21,7 +40,7 @@ const WidgetFrame = ({ title, children, icon: Icon }) => (
 );
 
 // 간단한 목록 표시를 위한 컴포넌트 (예: 상위 페이지)
-const SimpleTable = ({ data, columns, loading, showBar }) => {
+const SimpleTable = ({ data, columns, loading, showBar }: SimpleTableProps) => {
   if (loading) {
     return (
       <div className="space-y-2">

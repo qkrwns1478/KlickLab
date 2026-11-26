@@ -2,9 +2,6 @@ import React from 'react';
 import { 
   Users, 
   MousePointer,
-  TrendingUp,
-  TrendingDown,
-  Minus
 } from 'lucide-react';
 import clsx from 'clsx';
 
@@ -34,29 +31,9 @@ export const StatCard: React.FC<StatCardProps> = ({ data }) => {
     }
   };
 
-  const getChangeIcon = (changeType: string) => {
-    switch (changeType) {
-      case 'increase':
-        return <TrendingUp className="w-4 h-4" />;
-      case 'decrease':
-        return <TrendingDown className="w-4 h-4" />;
-      default:
-        return <Minus className="w-4 h-4" />;
-    }
-  };
 
-  const getChangeColor = (changeType: string) => {
-    switch (changeType) {
-      case 'increase':
-        return 'text-green-600';
-      case 'decrease':
-        return 'text-red-600';
-      default:
-        return 'text-gray-500';
-    }
-  };
 
-  const getGradientBg = (color: string) => {
+  const getGradientBg = () => {
     return 'bg-white';
   };
 
@@ -93,7 +70,7 @@ export const StatCard: React.FC<StatCardProps> = ({ data }) => {
   return (
     <div className={clsx(
       'p-2 rounded-xl border border-gray-200 shadow-sm bg-white flex flex-col justify-center',
-      getGradientBg(data.color)
+      getGradientBg()
     )} style={{ minHeight: 90 }}>
       <div className="text-center">
         <div className={clsx(

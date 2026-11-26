@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { setToken, setAutoLogin, getAutoLogin, getSavedCredentials } from '../../utils/storage';
+import { setToken, setAutoLogin, getAutoLogin } from '../../utils/storage';
 import { useAuthStore } from '../../store/useAuthStore';
 import logo from '../../assets/klicklab.png';
 
@@ -11,17 +11,9 @@ export default function LoginForm() {
   const [isLoading, setIsLoading] = useState(false);
   const setAuthState = useAuthStore((s) => s.setAuthState);
 
-  // 컴포넌트 마운트 시 저장된 자동 로그인 정보 복원
+  // 컴포넌트 마운트 시 "로그인 상태 유지" 체크 여부만 복원 (이메일/비밀번호는 저장하지 않음)
   useEffect(() => {
-    const savedAutoLogin = getAutoLogin();
-    if (savedAutoLogin) {
-      setRemember(true);
-      const savedCredentials = getSavedCredentials();
-      if (savedCredentials) {
-        setEmail(savedCredentials.email);
-        setPassword(savedCredentials.password);
-      }
-    }
+    if (getAutoLogin()) setRemember(true);
   }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -37,21 +29,17 @@ export default function LoginForm() {
         body: JSON.stringify({ email, password }),
       });
       
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.message || '로그인에 실패했습니다.');
+      // 서버가 JSON이 아닌 응답(예: CORS 거절 시 일반 텍스트)을 줄 수 있으므로 안전하게 파싱
+      const data = await res.json().catch(() => null);
+      if (!res.ok || !data?.accessToken) {
+        throw new Error(data?.message || (res.status === 403
+          ? '요청이 차단되었습니다. 서버의 CORS 설정을 확인해주세요.'
+          : '로그인에 실패했습니다.'));
       }
-      
-      const { accessToken } = await res.json();
-      setToken(accessToken, 15 * 60 * 1000, remember); // 토큰 + 만료시각 저장 (15분 후)
-      
-      // 자동 로그인 설정 저장
-      if (remember) {
-        setAutoLogin(true, { email, password });
-      } else {
-        setAutoLogin(false);
-      }
-      
+
+      setToken(data.accessToken, 15 * 60 * 1000, remember); // 토큰 + 만료시각 저장 (15분 후)
+      setAutoLogin(remember); // 체크 여부만 저장 (비밀번호는 저장하지 않음)
+
       setAuthState("loggedIn");
       window.location.href = '/';
     } catch (err: any) {

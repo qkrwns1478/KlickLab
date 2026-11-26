@@ -15,7 +15,7 @@ interface TopLandingPagesProps {
   refreshKey?: number;
 }
 
-const TopLandingPages: React.FC<TopLandingPagesProps> = ({ data, refreshKey }) => {
+const TopLandingPages: React.FC<TopLandingPagesProps> = ({ data }) => {
   // 페이지 URL을 짧게 표시하는 함수
   const formatPageLabel = (page: string) => {
     if (page === '/') return '홈페이지';

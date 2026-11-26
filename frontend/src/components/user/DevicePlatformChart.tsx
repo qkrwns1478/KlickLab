@@ -2,9 +2,9 @@ import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { getRangeLabel } from '../../utils/getRangeLabel';
 import type { UserData } from './UserDashboard'; // Import UserData type
 
-// 외부 링 – 플랫폼(운영체제)
+// 외부 링 – 플랫폼(운영체제)
 export type PlatformKey = 'ios' | 'android' | 'windows' | 'mac' | 'unknown';
-// 내부 링 – 디바이스 타입(모바일/데스크톱)
+// 내부 링 – 디바이스 타입(모바일/데스크톱)
 export type DeviceType = 'mobile' | 'desktop';
 
 interface PlatformData {
@@ -418,7 +418,7 @@ export const DevicePlatformChart: React.FC<DevicePlatformChartProps> = ({ dateRa
                     );
                   });
 
-                  let platformSegments: React.ReactElement[] = [];
+                  const platformSegments: React.ReactElement[] = [];
                   deviceCumulativeAngle = 0; // Reset for platform segments
 
                   // 외부 원형 차트 (플랫폼별) - device_type별로 그룹핑

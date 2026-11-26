@@ -33,7 +33,7 @@ export const UserDashboard: React.FC = () => {
   // API로부터 받은 원본 데이터 상태
   const [apiData, setApiData] = useState<UserData[]>([]);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [, setError] = useState<string | null>(null);
 
   // 날짜 쿼리 문자열 메모화
   const dateQuery = useMemo(() => {

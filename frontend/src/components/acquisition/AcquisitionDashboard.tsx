@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { addDays } from 'date-fns';
 import dayjs from 'dayjs';
 // import { Calendar, Settings, Share2, MoreHorizontal, BarChart3, Target, Globe, Users, TrendingUp, Clock } from 'lucide-react';
-import { useSegmentFilter } from '../../context/SegmentFilterContext';
+import { useSegmentFilter } from '../../context/segmentFilterContextValue';
 import { REGION_MAPPING } from '../../utils/regionUtils';
 import DateRangeSelector from '../ui/DateRangeSelector';
 
@@ -63,8 +63,8 @@ export const AcquisitionDashboard: React.FC = () => {
   // 실시간 사용자 데이터 상태
   const [realtimeUsers, setRealtimeUsers] = useState<number>(0);
   const [realtimeTrend, setRealtimeTrend] = useState<any[]>([]);
-  const [realtimeLocations, setRealtimeLocations] = useState<any[]>([]);
-  const [realtimeLoading, setRealtimeLoading] = useState<boolean>(false);
+  const [, setRealtimeLocations] = useState<any[]>([]);
+  const [, setRealtimeLoading] = useState<boolean>(false);
 
   // DateRangeSelector 상태 추가
   const [dateRange, setDateRange] = useState([

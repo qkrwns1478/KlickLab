@@ -1,0 +1,555 @@
+{
+  "kind": "analysis",
+  "model": "gpt-6-luna",
+  "judge_model": "gpt-6-luna",
+  "label": "openai-analysis",
+  "started_at": "2026-11-13T10:59:06+09:00",
+  "knowledge_mode": "prompt",
+  "summary": {
+    "total": 11,
+    "pass_rate": 72.7,
+    "fact_coverage": 65.2,
+    "judge_grounded": 92.4,
+    "judge_fact_coverage": 65.2,
+    "judged": 11,
+    "findings_avg": 3.5,
+    "dropped_findings": 0,
+    "forced_answers": 0,
+    "agent": {
+      "overall": {
+        "n": 11,
+        "tool_calls_avg": 4.4,
+        "llm_calls_avg": 4.3,
+        "prompt_tokens_avg": 16270,
+        "completion_tokens_avg": 3984,
+        "cost_usd_avg": 0.0,
+        "latency_ms_avg": 48860,
+        "latency_ms_p50": 41827,
+        "wait_ms_avg": 0,
+        "budget_exhausted_rate": 0.0,
+        "failed_rate": 0.0,
+        "first_sql_ok_rate": 100.0,
+        "corrections_avg": 0.1,
+        "promoted": 0
+      },
+      "by_difficulty": {
+        "compare": {
+          "n": 5,
+          "tool_calls_avg": 2.2,
+          "llm_calls_avg": 2.2,
+          "prompt_tokens_avg": 6342,
+          "completion_tokens_avg": 1615,
+          "cost_usd_avg": 0.0,
+          "latency_ms_avg": 23299,
+          "latency_ms_p50": 21640,
+          "wait_ms_avg": 0,
+          "budget_exhausted_rate": 0.0,
+          "failed_rate": 0.0,
+          "first_sql_ok_rate": 100.0,
+          "corrections_avg": 0,
+          "promoted": 0
+        },
+        "diagnose": {
+          "n": 6,
+          "tool_calls_avg": 6.2,
+          "llm_calls_avg": 6,
+          "prompt_tokens_avg": 24543,
+          "completion_tokens_avg": 5959,
+          "cost_usd_avg": 0.0,
+          "latency_ms_avg": 70161,
+          "latency_ms_p50": 67000,
+          "wait_ms_avg": 0,
+          "budget_exhausted_rate": 0.0,
+          "failed_rate": 0.0,
+          "first_sql_ok_rate": 100.0,
+          "corrections_avg": 0.2,
+          "promoted": 0
+        }
+      }
+    }
+  },
+  "items": [
+    {
+      "id": "diag-02",
+      "question": "최근 한 달 동안 모바일 결제가 갑자기 멈춘 날이 있었어? 있었다면 언제, 결제 흐름의 어느 단계에서 끊겼는지 알려줘",
+      "passed": true,
+      "found": [
+        "outage_date",
+        "outage_step"
+      ],
+      "missing": [],
+      "required": 2,
+      "values": {
+        "iso": "2026-10-29",
+        "kr": "10월 29일",
+        "md": "10-29",
+        "slash": "10/29"
+      },
+      "summary": "네. 최근 한 달(10월 13일~11월 12일) 중 모바일 결제가 완전히 관측되지 않은 날은 2026년 10월 29일 하루였고, 흐름은 장바구니와 체크아웃까지 진행된 뒤 결제 완료 단계에서 끊겼습니다.",
+      "findings": 3,
+      "dropped_findings": 0,
+      "forced": false,
+      "judge_grounded": 1.0,
+      "judge_fact_coverage": 1.0,
+      "judge_comment": "답변은 결제가 0건인 날짜와 중단 지점을 근거 결과에 맞게 설명했다.",
+      "judge_error": null,
+      "unsupported_claims": [],
+      "metrics": {
+        "run_id": "53fe2ef2-b9d9-4d7e-899b-dc3ea016e5f3",
+        "status": "succeeded",
+        "difficulty": "diagnose",
+        "initial_difficulty": "diagnose",
+        "tool_calls": 6,
+        "sql_attempts": 5,
+        "sql_failures": 0,
+        "first_sql_ok": true,
+        "corrections": 0,
+        "llm_calls": 6,
+        "format_errors": 0,
+        "prompt_tokens": 31709,
+        "completion_tokens": 4879,
+        "latency_ms": 54452,
+        "wait_ms": 0,
+        "error": null,
+        "models": {
+          "gpt-6-luna": 7
+        },
+        "fallback_calls": 0
+      }
+    },
+    {
+      "id": "diag-03",
+      "question": "화요일마다 방문자가 늘어나는 이유는 뭐야?",
+      "passed": true,
+      "found": [
+        "newsletter"
+      ],
+      "missing": [],
+      "required": 1,
+      "values": {},
+      "summary": "최근 관측된 평일 데이터에서는 화요일마다 전체 방문자가 늘어난다는 패턴이 없습니다. 다만 화요일 newsletter/email 유입 세션이 다른 평일보다 두드러져, 특정 뉴스레터 발송 때문에 화요일 유입이 눈에 띄는 것으로 보일 수 있습니다.",
+      "findings": 2,
+      "dropped_findings": 0,
+      "forced": false,
+      "judge_grounded": 1.0,
+      "judge_fact_coverage": 1.0,
+      "judge_comment": "화요일 전체 방문자 평균은 다른 평일보다 낮지만, newsletter/email 유입이 두드러진다는 점을 근거와 함께 설명했습니다. 뉴스레터 발송이 원인이라는 표현은 인과관계가 직접 입증된 사실이 아니라 가능성으로 제시되어 있습니다.",
+      "judge_error": null,
+      "unsupported_claims": [],
+      "metrics": {
+        "run_id": "94383114-5ec4-4398-8eb5-26d88dfb0688",
+        "status": "succeeded",
+        "difficulty": "diagnose",
+        "initial_difficulty": "diagnose",
+        "tool_calls": 8,
+        "sql_attempts": 7,
+        "sql_failures": 0,
+        "first_sql_ok": true,
+        "corrections": 0,
+        "llm_calls": 8,
+        "format_errors": 0,
+        "prompt_tokens": 30978,
+        "completion_tokens": 6240,
+        "latency_ms": 79547,
+        "wait_ms": 0,
+        "error": null,
+        "models": {
+          "gpt-6-luna": 9
+        },
+        "fallback_calls": 0
+      }
+    },
+    {
+      "id": "diag-04",
+      "question": "최근 일주일 사이 신규 방문자가 크게 늘어난 원인을 찾아줘",
+      "passed": true,
+      "found": [
+        "campaign",
+        "campaign_sources"
+      ],
+      "missing": [],
+      "required": 1,
+      "values": {},
+      "summary": "최근 7일(11월 6~12일) 신규 방문자는 7,307명으로 직전 7일보다 2,895명(+65.6%) 늘었습니다. 신규 방문자의 첫 페이지뷰 유입 경로를 보면 nov_mega_sale 캠페인(네이버 CPC·인스타그램 CPC·카카오 푸시)이 증가분 2,895명 중 2,725명(약 94%)을 설명해, 급증의 가장 큰 요인으로 보입니다.",
+      "findings": 5,
+      "dropped_findings": 0,
+      "forced": false,
+      "judge_grounded": 1.0,
+      "judge_fact_coverage": 1.0,
+      "judge_comment": "주요 수치와 세 캠페인 채널이 인용 결과와 일치한다. 급증 원인은 직접적인 인과관계로 단정하지 않고 첫 페이지뷰 유입의 증가를 근거로 설명했다.",
+      "judge_error": null,
+      "unsupported_claims": [],
+      "metrics": {
+        "run_id": "4e614c39-c744-48f0-9e8a-53aaa992b4a2",
+        "status": "succeeded",
+        "difficulty": "diagnose",
+        "initial_difficulty": "diagnose",
+        "tool_calls": 8,
+        "sql_attempts": 7,
+        "sql_failures": 1,
+        "first_sql_ok": true,
+        "corrections": 1,
+        "llm_calls": 7,
+        "format_errors": 0,
+        "prompt_tokens": 27630,
+        "completion_tokens": 6885,
+        "latency_ms": 83937,
+        "wait_ms": 0,
+        "error": null,
+        "models": {
+          "gpt-6-luna": 8
+        },
+        "fallback_calls": 0
+      }
+    },
+    {
+      "id": "diag-05",
+      "question": "이탈률이 특히 높은 유입 채널은 어디고, 다른 채널과 얼마나 차이 나?",
+      "passed": false,
+      "found": [],
+      "missing": [
+        "social_video_bounce"
+      ],
+      "required": 1,
+      "values": {},
+      "summary": "오늘(11월 13일) 이탈률이 가장 높은 채널은 다음 자연검색(daum / organic)으로 60.00%이며, 이 채널을 제외한 나머지 채널 통합 이탈률 26.02%보다 33.98%p 높습니다. 다만 세션이 5건이라 표본이 작고, 오늘 데이터는 일부만 반영됐을 수 있습니다.",
+      "findings": 2,
+      "dropped_findings": 0,
+      "forced": false,
+      "judge_grounded": 1.0,
+      "judge_fact_coverage": 0.0,
+      "judge_comment": "두 수치 주장은 결과와 일치한다. 정답 사실의 youtube 유입 이탈률이 높다는 내용은 답변에 포함되지 않았다.",
+      "judge_error": null,
+      "unsupported_claims": [],
+      "metrics": {
+        "run_id": "b8a58da6-e510-451e-9b63-63a55d99b2b3",
+        "status": "succeeded",
+        "difficulty": "compare",
+        "initial_difficulty": "compare",
+        "tool_calls": 2,
+        "sql_attempts": 1,
+        "sql_failures": 0,
+        "first_sql_ok": true,
+        "corrections": 0,
+        "llm_calls": 2,
+        "format_errors": 0,
+        "prompt_tokens": 5622,
+        "completion_tokens": 1422,
+        "latency_ms": 21078,
+        "wait_ms": 0,
+        "error": null,
+        "models": {
+          "gpt-6-luna": 3
+        },
+        "fallback_calls": 0
+      }
+    },
+    {
+      "id": "diag-06",
+      "question": "구매 의도가 높은 유입 채널은 어디야? 근거와 함께 알려줘",
+      "passed": true,
+      "found": [
+        "email",
+        "naver_cpc"
+      ],
+      "missing": [],
+      "required": 1,
+      "values": {},
+      "summary": "최근 7일(오늘 제외) 전환율 기준 구매 의도가 가장 높게 나타난 유입은 newsletter/email(10.33%)입니다. 다만 direct/none도 10.22%로 거의 비슷하면서 세션과 전환 건수가 훨씬 많아, 높은 전환율과 전환 규모를 함께 고려하면 두 채널을 우선 주목할 만합니다.",
+      "findings": 3,
+      "dropped_findings": 0,
+      "forced": false,
+      "judge_grounded": 0.6666666666666666,
+      "judge_fact_coverage": 1.0,
+      "judge_comment": "주요 수치와 채널 비교는 근거 결과에 부합합니다. 다만 naver/cpc를 newsletter/email 다음으로 전환율이 높은 채널이라고 한 순위 표현은 틀렸습니다.",
+      "judge_error": null,
+      "unsupported_claims": [
+        "3: naver/cpc의 수치 자체는 결과와 일치하지만, newsletter/email 다음으로 전환율이 높은 채널은 direct/none(10.22%)입니다. naver/cpc(8.20%)는 그다음입니다."
+      ],
+      "metrics": {
+        "run_id": "28061e74-e730-46fb-baa8-954804891053",
+        "status": "succeeded",
+        "difficulty": "compare",
+        "initial_difficulty": "compare",
+        "tool_calls": 2,
+        "sql_attempts": 1,
+        "sql_failures": 0,
+        "first_sql_ok": true,
+        "corrections": 0,
+        "llm_calls": 2,
+        "format_errors": 0,
+        "prompt_tokens": 5639,
+        "completion_tokens": 952,
+        "latency_ms": 16062,
+        "wait_ms": 0,
+        "error": null,
+        "models": {
+          "gpt-6-luna": 3
+        },
+        "fallback_calls": 0
+      }
+    },
+    {
+      "id": "diag-07",
+      "question": "하루 중 트래픽이 몰리는 시간대는 언제야? 기기별로 차이가 있는지도 봐줘",
+      "passed": true,
+      "found": [
+        "evening_peak",
+        "desktop_work_hours"
+      ],
+      "missing": [
+        "lunch_peak"
+      ],
+      "required": 2,
+      "values": {},
+      "summary": "최근 7일(오늘 제외)에는 전체 세션이 21시에 가장 많았고, 20~22시에 집중됐습니다. 모바일·태블릿은 저녁 시간대가 피크인 반면 데스크톱은 오전~오후 초반에 가장 많아 기기별 차이가 뚜렷합니다.",
+      "findings": 4,
+      "dropped_findings": 0,
+      "forced": false,
+      "judge_grounded": 1.0,
+      "judge_fact_coverage": 0.6666666666666666,
+      "judge_comment": "각 주장에 제시된 시간대별 세션 수는 SQL 결과와 일치합니다. 다만 점심(12시) 피크는 답변에서 언급하지 않았습니다.",
+      "judge_error": null,
+      "unsupported_claims": [],
+      "metrics": {
+        "run_id": "cf575370-3b08-43fd-8acc-8a4cea06ecb5",
+        "status": "succeeded",
+        "difficulty": "compare",
+        "initial_difficulty": "compare",
+        "tool_calls": 3,
+        "sql_attempts": 2,
+        "sql_failures": 0,
+        "first_sql_ok": true,
+        "corrections": 0,
+        "llm_calls": 3,
+        "format_errors": 0,
+        "prompt_tokens": 8873,
+        "completion_tokens": 1399,
+        "latency_ms": 21640,
+        "wait_ms": 0,
+        "error": null,
+        "models": {
+          "gpt-6-luna": 4
+        },
+        "fallback_calls": 0
+      }
+    },
+    {
+      "id": "diag-08",
+      "question": "주말과 평일의 방문 패턴은 어떻게 달라?",
+      "passed": true,
+      "found": [
+        "weekend_up"
+      ],
+      "missing": [],
+      "required": 1,
+      "values": {},
+      "summary": "최근 28일(오늘 제외)에는 주말의 일평균 방문자·세션·페이지뷰가 평일보다 많았고, 세션당 이용 깊이와 세션 시간은 거의 같았습니다. 가장 붐비는 시간대는 평일 21시, 주말 20시였습니다.",
+      "findings": 4,
+      "dropped_findings": 0,
+      "forced": false,
+      "judge_grounded": 1.0,
+      "judge_fact_coverage": 1.0,
+      "judge_comment": "주장과 요약의 수치가 인용된 SQL 결과와 일치합니다. 주말 방문이 평일보다 많다는 정답 사실도 포함되어 있습니다.",
+      "judge_error": null,
+      "unsupported_claims": [],
+      "metrics": {
+        "run_id": "85f535c2-3e1d-425d-8ae6-c12b1ea17545",
+        "status": "succeeded",
+        "difficulty": "compare",
+        "initial_difficulty": "compare",
+        "tool_calls": 2,
+        "sql_attempts": 1,
+        "sql_failures": 0,
+        "first_sql_ok": true,
+        "corrections": 0,
+        "llm_calls": 2,
+        "format_errors": 0,
+        "prompt_tokens": 5892,
+        "completion_tokens": 2271,
+        "latency_ms": 29061,
+        "wait_ms": 0,
+        "error": null,
+        "models": {
+          "gpt-6-luna": 3
+        },
+        "fallback_calls": 0
+      }
+    },
+    {
+      "id": "diag-09",
+      "question": "nov_mega_sale 캠페인의 성과를 유입과 전환 관점에서 평가해줘",
+      "passed": true,
+      "found": [
+        "campaign_sources"
+      ],
+      "missing": [
+        "new_visitors"
+      ],
+      "required": 1,
+      "values": {},
+      "summary": "2026-11-05~11-12 nov_mega_sale은 3,691세션과 전환 239건을 만들었고, 같은 집행 시간대의 기타 유입보다 이탈률은 낮고 참여율은 높았지만 전환율은 낮았습니다. 유입 규모와 전환율 모두 네이버 CPC가 가장 강했고, 인스타그램 CPC는 전환 효율 개선이 필요해 보입니다.",
+      "findings": 4,
+      "dropped_findings": 0,
+      "forced": false,
+      "judge_grounded": 0.75,
+      "judge_fact_coverage": 0.5,
+      "judge_comment": "유입 규모·참여 지표와 채널별 전환 성과 비교는 근거 결과와 잘 맞습니다. 다만 캠페인 전체 세션당 전환값은 잘못 계산했고, 신규 방문자 유입이 컸다는 사실은 답변에 포함되지 않았습니다.",
+      "judge_error": null,
+      "unsupported_claims": [
+        "4: step 2의 전환값을 세션으로 나누면 네이버 CPC는 약 5,673, 카카오 푸시는 약 4,275, 인스타그램 CPC는 약 2,331이 맞지만, 캠페인 전체는 step 1 기준 16,440,600÷3,691로 약 4,454이며 4,746이 아닙니다."
+      ],
+      "metrics": {
+        "run_id": "96b51ee7-f84d-41a6-b423-bb5033f04c88",
+        "status": "succeeded",
+        "difficulty": "diagnose",
+        "initial_difficulty": "diagnose",
+        "tool_calls": 3,
+        "sql_attempts": 2,
+        "sql_failures": 0,
+        "first_sql_ok": true,
+        "corrections": 0,
+        "llm_calls": 3,
+        "format_errors": 0,
+        "prompt_tokens": 8709,
+        "completion_tokens": 3599,
+        "latency_ms": 41827,
+        "wait_ms": 0,
+        "error": null,
+        "models": {
+          "gpt-6-luna": 4
+        },
+        "fallback_calls": 0
+      }
+    },
+    {
+      "id": "diag-10",
+      "question": "최근 4주 기준으로 기기 유형별 결제 전환율이 다른 이유가 있을까?",
+      "passed": false,
+      "found": [],
+      "missing": [
+        "mobile_outage"
+      ],
+      "required": 1,
+      "values": {},
+      "summary": "최근 28일 공식 결제 전환율은 모바일 5.50%, 데스크톱 6.53%, 태블릿 7.33%였습니다. 모바일의 낮은 전환은 유입 채널 구성 차이보다는 체크아웃에 도달한 뒤 결제까지 완료하는 비율이 데스크톱보다 낮은 점과 더 밀접해 보입니다. 다만 데이터만으로 결제 UX나 기술 문제를 원인으로 단정할 수는 없습니다.",
+      "findings": 4,
+      "dropped_findings": 0,
+      "forced": false,
+      "judge_grounded": 1.0,
+      "judge_fact_coverage": 0.0,
+      "judge_comment": "주요 수치와 비교 해석은 인용된 결과로 확인된다. 다만 정답 사실인 모바일 결제 장애 당일 결제가 0건이었다는 내용은 답변에 포함되어 있지 않다.",
+      "judge_error": null,
+      "unsupported_claims": [],
+      "metrics": {
+        "run_id": "85048493-b83c-4da8-8f68-206c129dbedd",
+        "status": "succeeded",
+        "difficulty": "diagnose",
+        "initial_difficulty": "diagnose",
+        "tool_calls": 8,
+        "sql_attempts": 7,
+        "sql_failures": 0,
+        "first_sql_ok": true,
+        "corrections": 0,
+        "llm_calls": 8,
+        "format_errors": 0,
+        "prompt_tokens": 35319,
+        "completion_tokens": 10364,
+        "latency_ms": 116047,
+        "wait_ms": 0,
+        "error": null,
+        "models": {
+          "gpt-6-luna": 9
+        },
+        "fallback_calls": 0
+      }
+    },
+    {
+      "id": "diag-11",
+      "question": "로그인 회원과 비회원은 방문 행동이 어떻게 달라?",
+      "passed": false,
+      "found": [],
+      "missing": [
+        "members_return"
+      ],
+      "required": 1,
+      "values": {},
+      "summary": "최근 7일(11월 6~12일)에는 로그인 회원 세션이 비회원보다 세션당 페이지뷰와 이벤트가 많고 관측 체류 구간도 길었으며, 장바구니 담기·결제 행동이 포함된 세션 비율도 더 높았습니다. 다만 이 비교는 세션 내 이벤트에 user_id가 한 번이라도 있었는지로 로그인 회원을 구분한 결과입니다.",
+      "findings": 4,
+      "dropped_findings": 0,
+      "forced": false,
+      "judge_grounded": 1.0,
+      "judge_fact_coverage": 0.0,
+      "judge_comment": "제시된 수치 비교와 회원 구분 방식은 SQL 결과로 뒷받침됩니다. 다만 방문자당 세션 수가 회원에서 더 많다는 재방문 사실은 답변에 포함되지 않았습니다.",
+      "judge_error": null,
+      "unsupported_claims": [],
+      "metrics": {
+        "run_id": "936452b3-9123-4d37-a535-ae66a2e79c5c",
+        "status": "succeeded",
+        "difficulty": "compare",
+        "initial_difficulty": "compare",
+        "tool_calls": 2,
+        "sql_attempts": 1,
+        "sql_failures": 0,
+        "first_sql_ok": true,
+        "corrections": 0,
+        "llm_calls": 2,
+        "format_errors": 0,
+        "prompt_tokens": 5685,
+        "completion_tokens": 2030,
+        "latency_ms": 28655,
+        "wait_ms": 0,
+        "error": null,
+        "models": {
+          "gpt-6-luna": 3
+        },
+        "fallback_calls": 0
+      }
+    },
+    {
+      "id": "diag-12",
+      "question": "최근 4주 동안 방문자가 늘고 있어? 추세와 이유를 알려줘",
+      "passed": true,
+      "found": [
+        "growth",
+        "campaign"
+      ],
+      "missing": [],
+      "required": 1,
+      "values": {},
+      "summary": "최근 4주 방문자는 매주 늘었고, 특히 마지막 주(11월 6~12일)에 9,646명으로 전주보다 53.1% 급증했습니다. 동시에 세션과 네이버 CPC 캠페인 유입도 크게 늘어, nov_mega_sale 캠페인이 급증의 주요 동반 요인으로 보이지만 집계만으로 인과관계를 단정할 수는 없습니다.",
+      "findings": 4,
+      "dropped_findings": 0,
+      "forced": false,
+      "judge_grounded": 0.75,
+      "judge_fact_coverage": 1.0,
+      "judge_comment": "방문자와 세션의 주간 상승 추세 및 캠페인 유입 증가는 근거와 일치한다. 다만 채널별 세션 증가를 방문자 증가의 기여로 단정한 주장은 근거를 넘어선다.",
+      "judge_error": null,
+      "unsupported_claims": [
+        "4: 인용 결과는 직접·네이버 자연검색·구글 자연검색 세션이 증가했음을 보여주지만, 이 채널들이 방문자 증가에 실제로 기여했다고 인과적으로 확인해 주지는 않는다."
+      ],
+      "metrics": {
+        "run_id": "3d2968fc-57b2-4d1f-b52f-35311f234f21",
+        "status": "succeeded",
+        "difficulty": "diagnose",
+        "initial_difficulty": "diagnose",
+        "tool_calls": 4,
+        "sql_attempts": 3,
+        "sql_failures": 0,
+        "first_sql_ok": true,
+        "corrections": 0,
+        "llm_calls": 4,
+        "format_errors": 0,
+        "prompt_tokens": 12915,
+        "completion_tokens": 3788,
+        "latency_ms": 45155,
+        "wait_ms": 0,
+        "error": null,
+        "models": {
+          "gpt-6-luna": 5
+        },
+        "fallback_calls": 0
+      }
+    }
+  ]
+}

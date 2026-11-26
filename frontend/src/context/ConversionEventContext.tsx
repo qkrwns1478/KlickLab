@@ -1,13 +1,9 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
-
-// 전환 이벤트 전역 상태 Context 생성
-const ConversionEventContext = createContext(null);
-
-// Context를 쉽게 쓰기 위한 커스텀 훅
-export const useConversionEvent = () => useContext(ConversionEventContext);
+import { useState, useEffect } from 'react';
+import type { ReactNode } from 'react';
+import { ConversionEventContext } from './conversionEventContextValue';
 
 // Provider 컴포넌트
-export const ConversionEventProvider = ({ children }) => {
+export const ConversionEventProvider = ({ children }: { children: ReactNode }) => {
   const [currentEvent, setCurrentEvent] = useState<string | null>(null);
 
   // 앱 시작 시 서버에서 현재 전환 이벤트 불러오기

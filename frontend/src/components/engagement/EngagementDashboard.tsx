@@ -10,11 +10,7 @@ import EngagementEvents from './EngagementEvents';
 import EngagementPages from './EngagementPages';
 import EngagementVisits from './EngagementVisits';
 import { UserPathSankeyChart } from '../user/UserPathSankeyChart';
-import { mockSankeyPaths } from '../../data/mockData';
 
-// import { eventCounts } from '../../data/engagementMock';
-// import { pageStats } from '../../data/engagementMock';
-// import { visitStats } from '../../data/engagementMock';
 
 import type {
   PageTimeData,
@@ -54,9 +50,9 @@ export const EngagementDashboard: React.FC = () => {
   const [pageStats, setPageStats] = useState<PageStatsData[]>([]);
   const [visitStats, setVisitStats] = useState<VisitStatsData[]>([]);
 
-  const [loading, setLoading] = useState(false);
+  const [, setLoading] = useState(false);
   const [isFirstLoad, setIsFirstLoad] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [, setError] = useState<string | null>(null);
   const [selectedMetric, setSelectedMetric] = useState<'viewCounts' | 'clickCounts'>('viewCounts');
   const [selectedMetric2, setSelectedMetric2] = useState<'avgSessionSecs' | 'sessionsPerUsers'>('avgSessionSecs');
 
@@ -117,7 +113,7 @@ export const EngagementDashboard: React.FC = () => {
           setUsersOverTime(dataUOTime);
           
           // 이벤트 데이터를 TopClicks 형식으로 변환
-          const topEventsFormatted = dataTopEvents.data?.topEvents?.map(event => ({
+          const topEventsFormatted = dataTopEvents.data?.topEvents?.map((event: { event: string; count: number }) => ({
             label: event.event,
             count: event.count
           })) || [];
@@ -215,7 +211,7 @@ export const EngagementDashboard: React.FC = () => {
         } else {
           setSankeyPaths(null);
         }
-      } catch (err) {
+      } catch {
         setSankeyError('경로 데이터를 불러오지 못했습니다.');
         setSankeyPaths(null);
       } finally {
@@ -332,7 +328,7 @@ export const EngagementDashboard: React.FC = () => {
                 <option value="url">URL</option>
               </select>
             </div>
-            <UserPathSankeyChart data={{ paths: sankeyPaths }} type={dropdownType} />
+            <UserPathSankeyChart data={{ paths: sankeyPaths ?? [] }} type={dropdownType} />
             {sankeyLoading && <div style={{ color: '#888', padding: 12 }}>경로 데이터를 불러오는 중...</div>}
             {sankeyError && <div style={{ color: 'red', padding: 12 }}>{sankeyError}</div>}
           </div>

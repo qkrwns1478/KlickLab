@@ -1,0 +1,22 @@
+services:
+  postgres:
+    image: pgvector/pgvector:pg17
+    container_name: klicklab-postgres
+    environment:
+      POSTGRES_DB: ${DB_NAME:-klicklab}
+      POSTGRES_USER: ${DB_USERNAME:-klicklab}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-klicklab}
+      TZ: Asia/Seoul
+      PGTZ: Asia/Seoul
+    ports:
+      - "${DB_PORT:-5432}:5432"
+    volumes:
+      - klicklab-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  klicklab-pgdata:

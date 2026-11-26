@@ -228,7 +228,7 @@ export const ConversionEventMapping: React.FC = () => {
                         <div className="text-xs text-gray-500">
                           {event.event_count.toLocaleString()}회
                           <br />
-                          {event.unique_users.toLocaleString()}명
+                          {(event.unique_users ?? 0).toLocaleString()}명
                         </div>
                       ) : (
                         <div className="text-xs text-gray-400">

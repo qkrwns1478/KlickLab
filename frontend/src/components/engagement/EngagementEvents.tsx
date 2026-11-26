@@ -62,7 +62,7 @@ const EngagementEvents: React.FC<EngagementEventsProps> = ({ eventCounts }) => {
           setSortKey(KEY);
         }}
       >
-        {(selectedKeys, chartData, lineDefs, unit) => (
+        {(selectedKeys, _chartData, _lineDefs, unit) => (
           <HorizontalLineChart
             data={(() => {
               const uniqueDates = [...new Set(eventCounts.map(d => d.date))].sort();
