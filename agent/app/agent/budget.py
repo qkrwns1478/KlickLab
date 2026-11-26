@@ -30,8 +30,11 @@ class BudgetLimits:
 
 # 계획 문서의 타임아웃(15/40/120초)은 Claude 기준이다.
 # Groq 무료 등급은 요청 간 2초 간격과 429 대기가 섞이므로 넉넉하게 둔다.
+# lookup 의 SQL 2회는 첫 SQL 이 실행 오류로 실패했을 때 한 번 고칠 몫이다. 1회일 때는
+# 첫 SQL 이 실패하면 승격 말고는 길이 없어, 2026-11-26 로컬 평가 compare-04 가
+# 성공한 SQL 없이 끝났다.
 LIMITS: dict[Difficulty, BudgetLimits] = {
-    "lookup": BudgetLimits(3, 1, 20_000, 30, "medium"),
+    "lookup": BudgetLimits(3, 2, 20_000, 30, "medium"),
     "compare": BudgetLimits(6, 3, 50_000, 60, "high"),
     "diagnose": BudgetLimits(15, 8, 120_000, 180, "high"),
 }

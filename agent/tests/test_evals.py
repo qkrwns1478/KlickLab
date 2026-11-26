@@ -145,6 +145,12 @@ def test_fact_found_needs_one_keyword_from_every_group():
     assert not fact_found(text, {"keywords": [["모바일"], ["youtube"]]})
 
 
+def test_fact_found_min_groups():
+    fact = {"keywords": [["naver"], ["instagram"], ["kakao"]], "min_groups": 2}
+    assert fact_found("naver 와 instagram", fact)
+    assert not fact_found("naver 만", fact)
+
+
 def test_fact_found_ignores_spacing_and_fills_values():
     text = "결제 완료 단계에서 끊겼고 날짜는 10월 26일"
     assert fact_found(text, {"keywords": [["결제완료"]]})

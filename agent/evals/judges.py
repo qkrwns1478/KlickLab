@@ -35,13 +35,15 @@ def fill(keyword: str, values: dict[str, Any]) -> str:
 
 
 def fact_found(text: str, fact: dict[str, Any], values: dict[str, Any] | None = None) -> bool:
-    """keywords 의 모든 그룹에서 하나 이상이 text 에 있으면 True (대소문자·공백 무시)."""
+    """keywords 의 그룹마다 하나 이상이 text 에 있으면 그 그룹을 찾은 것으로 본다 (대소문자·공백 무시).
+
+    찾은 그룹이 min_groups 이상이면 True. min_groups 가 없으면 모든 그룹이 필요하다.
+    """
     haystack = _norm(text)
     values = values or {}
-    return all(
-        any(_norm(fill(str(k), values)) in haystack for k in group)
-        for group in fact.get("keywords") or []
-    )
+    groups = fact.get("keywords") or []
+    hits = sum(any(_norm(fill(str(k), values)) in haystack for k in group) for group in groups)
+    return hits >= int(fact.get("min_groups", len(groups)))
 
 
 @dataclass

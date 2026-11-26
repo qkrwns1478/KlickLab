@@ -2,7 +2,7 @@ from dataclasses import dataclass, field
 
 import pytest
 
-from app.agent.budget import Budget
+from app.agent.budget import LIMITS, Budget
 from app.agent.tools import RunState, Step
 from app.agent.tools.describe_table import DescribeTable, sample_sql
 from app.agent.tools.final_answer import SubmitFinalAnswer, validate
@@ -100,7 +100,7 @@ async def test_run_sql_caches_same_sql_without_charging():
 
 async def test_run_sql_refuses_when_sql_budget_is_spent():
     state = _state("lookup")
-    state.budget.sql_runs = 1
+    state.budget.sql_runs = LIMITS["lookup"].max_sql
     outcome = await RunSQL(FakeExecutor())(state, {"sql": SQL}, 1)
     assert outcome.for_model["kind"] == "budget"
 

@@ -167,13 +167,20 @@ async def test_happy_path_runs_sql_and_submits_report_with_evidence():
     assert [s["tool"] for s in store.steps] == ["run_sql", "submit_report"]
 
 
-async def test_lookup_hides_run_sql_after_last_sql():
+async def test_lookup_corrects_once_then_hides_run_sql():
     agent, llm, *_ = make_agent(
-        [classify("lookup"), calls(("run_sql", {"sql": SQL_OK})), report()], [ROWS]
+        [
+            classify("lookup"),
+            calls(("run_sql", {"sql": "SELECT nope FROM agg_daily_users"})),
+            calls(("run_sql", {"sql": SQL_OK})),
+            report(evidence=(2,)),
+        ],
+        [SQLExecutionError("error", 'column "nope" does not exist'), ROWS],
     )
-    await collect(agent)
-    assert "run_sql" in llm.requests[1]["tools"]
-    assert "run_sql" not in llm.requests[2]["tools"]
+    events = await collect(agent)
+    assert "run_sql" in llm.requests[2]["tools"]  # 실행 오류 뒤 한 번 고칠 수 있다
+    assert "run_sql" not in llm.requests[3]["tools"]
+    assert by_type(events, "done")[0]["status"] == "succeeded"
 
 
 async def test_self_corrects_after_sql_error():

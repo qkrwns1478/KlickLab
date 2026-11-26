@@ -3,6 +3,7 @@
 #  * facts: 답변(summary + findings)에 들어 있어야 하는 사실
 #      keywords   : 그룹 목록. 각 그룹에서 하나 이상이 답변에 있어야 사실을 찾은 것으로 본다 (대소문자·공백 무시)
 #                   {이름} 은 values_sql 결과 컬럼 값으로 바꾼다 (실행 날짜마다 달라지는 날짜 등)
+#      min_groups : 찾아야 하는 keywords 그룹 수 (없으면 전부)
 #      check_sql  : 이 사실이 지금 DB 에서 성립하는지 확인하는 SQL (ok 컬럼 하나). 시드가 오래돼 패턴이
 #                   질문 기간을 벗어나면 평가 전에 실패로 알려 준다 (evals check)
 #  * required: 통과에 필요한 최소 사실 수
@@ -11,19 +12,27 @@
 - id: diag-01
   ci: true
   # 캠페인은 시드 실행일 기준 2~8일 전이다. 달력 주(지난주·이번 주)로 물으면 요일에 따라 캠페인이 두 주에
-  # 걸쳐 패턴이 성립하지 않으므로, 캠페인 기간과 같은 상대 기간(그 전 7일 = 2~8일 전)으로 묻는다
-  question: 어제는 그 전 7일보다 참여도가 떨어진 페이지가 있어? 있다면 원인을 분석해 줘
+  # 걸쳐 패턴이 성립하지 않으므로, 캠페인 기간과 같은 상대 기간(그 전 7일 = 2~8일 전)으로 묻는다.
+  # 시드는 페이지 체류 시간·종료율을 바꾸지 않고 캠페인 랜딩(/products*)의 페이지뷰만 늘린다
+  # (2026-11-26 실측: 캠페인 유입 /products* 일평균 1,024 → 어제 1, 그 외 1,809 → 1,669).
+  # 그래서 "참여도"가 아니라 "페이지뷰"로 묻는다
+  question: 어제는 그 전 7일보다 페이지뷰가 크게 줄어든 페이지가 있어? 있다면 원인을 분석해 줘
   required: 1
   facts:
     - id: campaign_ended
-      description: nov_mega_sale 캠페인 유입이 그 전 7일에 몰렸고 어제는 줄었다
+      description: nov_mega_sale 캠페인 유입이 그 전 7일에 몰렸고 어제는 줄어, 랜딩인 상품 페이지 페이지뷰가 줄었다
       keywords: [[nov_mega_sale, 메가세일, 캠페인]]
       check_sql: |
-        SELECT sum(sessions) FILTER (WHERE summary_date < current_date - 1) / 7.0
-                 > 2 * coalesce(sum(sessions) FILTER (WHERE summary_date = current_date - 1), 0) AS ok
-        FROM agg_traffic_hourly
-        WHERE traffic_campaign = 'nov_mega_sale'
-          AND summary_date >= current_date - 8 AND summary_date < current_date
+        SELECT (SELECT sum(sessions) FILTER (WHERE summary_date < current_date - 1) / 7.0
+                         > 2 * coalesce(sum(sessions) FILTER (WHERE summary_date = current_date - 1), 0)
+                FROM agg_traffic_hourly
+                WHERE traffic_campaign = 'nov_mega_sale'
+                  AND summary_date >= current_date - 8 AND summary_date < current_date)
+           AND (SELECT sum(page_views) FILTER (WHERE summary_date < current_date - 1) / 7.0 * 0.75
+                         > coalesce(sum(page_views) FILTER (WHERE summary_date = current_date - 1), 0)
+                FROM agg_page_daily
+                WHERE page_path LIKE '/products%'
+                  AND summary_date >= current_date - 8 AND summary_date < current_date) AS ok
 
 - id: diag-02
   ci: true
@@ -169,11 +178,14 @@
 
 - id: diag-09
   question: nov_mega_sale 캠페인의 성과를 유입과 전환 관점에서 평가해줘
-  required: 1
+  # 유입 사실(campaign_sources)은 거의 모든 답변에 나오므로, 신규 유입이나 전환 중 하나를 더 짚어야 통과한다
+  required: 2
   facts:
     - id: campaign_sources
-      description: 캠페인 유입은 naver cpc / instagram / kakao
+      description: 캠페인 유입은 naver cpc / instagram / kakao (셋 중 둘 이상)
       keywords: [[naver, 네이버], [instagram, 인스타그램], [kakao, 카카오]]
+      # 전환 관점까지 다루면 주력(naver)과 저효율(instagram)만 짚고 kakao 는 빠지기 쉽다 (2026-11-26 diag-09)
+      min_groups: 2
       check_sql: |
         SELECT count(DISTINCT traffic_source) = 3 AS ok
         FROM agg_traffic_hourly
@@ -182,6 +194,16 @@
     - id: new_visitors
       description: 신규 방문자 유입이 컸다
       keywords: [[신규, 새로운방문자, 첫방문]]
+    - id: campaign_conversion
+      description: 캠페인 전환율이 캠페인 외 유입보다 낮다 (2026-11-26 실측 6.3% / 7.6%, 캠페인 안에서는 instagram 이 가장 낮다)
+      keywords: [[전환], [낮, 못미, 밑돌, 하회, 떨어]]
+      check_sql: |
+        SELECT sum(conversions) FILTER (WHERE traffic_campaign = 'nov_mega_sale') * 1.0
+                 / NULLIF(sum(sessions) FILTER (WHERE traffic_campaign = 'nov_mega_sale'), 0)
+             < sum(conversions) FILTER (WHERE traffic_campaign IS DISTINCT FROM 'nov_mega_sale') * 1.0
+                 / NULLIF(sum(sessions) FILTER (WHERE traffic_campaign IS DISTINCT FROM 'nov_mega_sale'), 0) AS ok
+        FROM agg_traffic_hourly
+        WHERE summary_date >= current_date - 14
 
 - id: diag-10
   question: 최근 4주 기준으로 기기 유형별 결제 전환율이 다른 이유가 있을까?
