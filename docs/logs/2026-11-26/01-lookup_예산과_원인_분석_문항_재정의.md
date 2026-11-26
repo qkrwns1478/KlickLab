@@ -2,7 +2,7 @@
 
 ## 요청
 
-2026-11-25 로그(`2026-11-25/01-남은_평가_과제_정리와_분류기_개선.md`)의 "남은 것" 중 세 항목을 이어서 진행한다.
+[2026-11-25 로그](../2026-11-25/01-남은_평가_과제_정리와_분류기_개선.md)의 "남은 것" 중 세 항목을 이어서 진행한다.
 
 | 항목 | 처리 |
 | --- | --- |
@@ -89,6 +89,8 @@
 - 테스트: `test_fact_found_min_groups`를 추가했다.
 - 3절 리포트의 diag-09 summary에 새 기준을 적용하면 `campaign_sources`·`campaign_conversion`을 모두 찾아 통과한다. 평가는 다시 돌리지 않았다.
 
-## 남은 것
+### 5. CI의 LLM 회귀 평가를 수동 실행으로 제한 (`.github/workflows/agent.yml`)
 
-- GitHub Actions 실제 실행(`OPENAI_API_KEY` 시크릿 등록 필요).
+- 저장소에 `OPENAI_API_KEY` 시크릿을 등록하면, `agent/` 등을 건드린 PR에 push할 때마다 LLM 단계(golden 축소셋 10문항 + 에이전트 안전성 5문항, 실행당 약 4~5만 토큰 추정)가 돌게 된다.
+- LLM 단계의 조건에 `github.event_name == 'workflow_dispatch'`를 추가했다. PR에서는 lint·단위 테스트·DB 통합 테스트·`check`·검색 평가만 돌고, LLM 평가는 Actions에서 수동으로 실행할 때만 돈다(`full` 입력으로 전체 평가셋 선택 가능).
+- 워크플로 머리 주석도 이에 맞췄다.
